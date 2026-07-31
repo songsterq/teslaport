@@ -65,7 +65,12 @@ ul.links a {
 }
 ul.links a:active { background: #262c37; }
 
-button {
+/* `a.button` is for navigation, `button` for actions. Nesting a <button>
+   inside an <a> is invalid HTML — the anchor may not contain interactive
+   content — and browsers disagree on whether the click still navigates.
+   On a screen with no developer tools, a nav control that silently does
+   nothing is not a risk worth taking for a shared border-radius. */
+button, a.button {
   font: inherit;
   min-height: 52px;
   padding: 0 20px;
@@ -75,7 +80,19 @@ button {
   color: var(--text);
   cursor: pointer;
 }
-button.primary { background: var(--accent); color: #04121f; border-color: transparent; font-weight: 600; }
+a.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  text-decoration: none;
+}
+button.primary, a.button.primary {
+  background: var(--accent);
+  color: #04121f;
+  border-color: transparent;
+  font-weight: 600;
+}
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 
 input[type="url"], input[type="text"] {

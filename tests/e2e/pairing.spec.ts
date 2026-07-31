@@ -117,6 +117,24 @@ test("an unkeyed receiver neither displaces the car nor acks", async ({
   expect(await received).toBeGreaterThan(12);
 });
 
+// The home page is the one nav path with no other coverage, and the car cannot
+// be debugged if a control silently does nothing when tapped.
+test("the home page routes to both roles", async ({ browser }) => {
+  // Separate contexts: a phone that had already been the car would find a seed
+  // in its own storage and come up paired, which would not test the link.
+  const car = await (await browser.newContext()).newPage();
+  await car.goto("/");
+  await car.getByRole("link", { name: /car/i }).click();
+  await expect(car).toHaveURL(/\/r#[0-9A-Z]{24}$/);
+  await expect(car.locator("#qr svg")).toBeVisible();
+
+  const phone = await (await browser.newContext()).newPage();
+  await phone.goto("/");
+  await phone.getByRole("link", { name: /phone/i }).click();
+  await expect(phone).toHaveURL(/\/s$/);
+  await expect(phone.locator("#unpaired")).toBeVisible();
+});
+
 // The probe only reports ok once the server answers the byte it sent, so this
 // covers the outbound frame path too — not just the upgrade.
 test("/debug round-trip probes all pass against the real worker", async ({ browser }) => {
