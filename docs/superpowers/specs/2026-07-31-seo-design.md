@@ -1,7 +1,13 @@
 # SEO — design
 
-Target keyword: **Tesla link sharing**. Canonical origin:
-`https://teslaport.endlessrainstudio.com`.
+Target keyword: **Tesla link sharing**.
+
+> **Amended after implementation.** The canonical origin was first hardcoded
+> as `https://teslaport.endlessrainstudio.com` in each page and in
+> `public/robots.txt` / `public/sitemap.xml`. It is now derived from the
+> request host by the Worker; no domain appears in the source. The sections
+> below reflect the amended design, and "Deriving the origin" records what
+> changed and why.
 
 The site is four static pages behind a Worker. Only one of them — the home
 page — is a document a searcher should ever land on. `/r`, `/s` and `/debug`
@@ -19,21 +25,45 @@ so the crawler never reads the `noindex` on it, and the URL remains eligible to
 appear as a bare, untitled result. Crawl-and-noindex is the combination that
 actually removes a page; disallow-only is the combination that strands it.
 
+## Deriving the origin
+
+Canonical and Open Graph URLs have to be absolute, and `robots.txt` and
+`sitemap.xml` have to name the site's own origin. Writing that origin into the
+source put the same domain in six files and made a domain move a six-file edit
+that would half-apply. The Worker supplies it instead, from `new URL(request.url)`:
+
+- `<link rel="canonical">` is **injected** into `<head>`, not rewritten in
+  place. Vite's HTML plugin resolves every `<link href>` as a build asset, so
+  an authored `href="/s"` is read as a file path, finds the `s/` directory and
+  fails the build with `EISDIR`. `<meta>` is not treated that way, so the
+  `og:` URLs can stay in the markup and merely have their origin filled in.
+- The canonical path is `url.pathname`, so a query string cannot mint a second
+  URL for the same page — `/?choose` is canonical to `/`. Trailing slashes are
+  already normalised by `drop-trailing-slash` before the Worker sees them.
+- `robots.txt` and `sitemap.xml` are generated in the Worker rather than served
+  from `public/`, because both must state the origin absolutely.
+- `Content-Length` is dropped when the document is rewritten. The upstream
+  asset response describes the un-rewritten body, and a stale value truncates
+  the page at the browser — at the end, which is where the JSON-LD sits.
+
+The cost of this is that every hostname reaching the Worker claims to be the
+canonical one. That includes the `workers.dev` hostname assigned on the first
+deploy, which under the old hardcoded scheme correctly pointed at the real
+domain and now self-canonicalises into an indexable duplicate. Nothing in the
+Worker knows which domain is real, so rather than reintroduce a configured one,
+responses on `*.workers.dev` carry `X-Robots-Tag: noindex`. A second *real*
+domain would still split the ranking and is a deployment decision, not
+something this design can detect.
+
 ## Static files
 
 A new `public/` directory. Vite's default `publicDir` is `public`, so its
-contents are copied to `dist/client` verbatim with no config change.
+contents are copied to `dist/client` verbatim with no config change. It holds
+one file:
 
-- `public/robots.txt` — allow-all plus `Sitemap:` line.
-- `public/sitemap.xml` — one `<url>`, the home page. The app pages are noindex
-  and do not belong in a sitemap.
 - `public/og.png` — 1200×630 social card, rendered once from the existing brand
   mark with sharp and committed as a binary. sharp is not added to
   `package.json`; it is a one-time authoring tool, not a build step.
-
-These land at the origin root, so they are matched by `run_worker_first`'s
-`/*` and served through the Worker. That is correct and cheap: three small
-files, and the security headers apply uniformly.
 
 ## Head metadata
 
@@ -43,15 +73,14 @@ Home page:
 | --- | --- |
 | `<title>` | `TeslaPort — Tesla Link Sharing From Phone to Car Browser` |
 | `description` | Leads with the keyword, ~150 chars. |
-| `canonical` | `https://teslaport.endlessrainstudio.com/` |
+| `canonical` | Injected by the Worker as `<origin>/`. |
 | `robots` | `index,follow,max-image-preview:large` |
-| `og:type` / `og:site_name` / `og:title` / `og:description` / `og:url` / `og:image` | Set; image is the absolute URL of `og.png`. |
+| `og:type` / `og:site_name` / `og:title` / `og:description` / `og:url` / `og:image` | Set; the two URLs are authored root-relative and absolutised by the Worker. |
 | `twitter:card` | `summary_large_image` |
 
-`/r`, `/s`, `/debug`: `robots` set to `noindex,nofollow`, plus a
-self-referencing canonical. Their titles stay short — they are read on a car
-screen at arm's length, and title length is not a ranking factor for a page
-that is not in the index.
+`/r`, `/s`, `/debug`: `robots` set to `noindex,nofollow`. Their titles stay
+short — they are read on a car screen at arm's length, and title length is not
+a ranking factor for a page that is not in the index.
 
 ## Structured data
 
@@ -100,15 +129,32 @@ browser", because nothing here has been tested across model years.
 
 ## Tests
 
-Added to the Playwright suite:
+No test names a production domain; each derives the expected origin from the
+response it got, which is the property under test.
 
-- Home page: has a canonical pointing at the production origin, has no
-  `noindex`, has a non-empty `og:image`.
+Playwright, against the real wrangler dev server:
+
+- Home page: canonical, `og:url` and `og:image` all absolute on the serving
+  origin; no `noindex`; title ≤ 60 chars and description ≤ 160.
+- The canonical origin follows the host — the same server fetched as
+  `localhost` and as `127.0.0.1` yields different canonicals.
+- The rewritten document is not truncated: any `Content-Length` matches the
+  body, and the document ends with `</html>`.
 - `/r`, `/s`, `/debug`: each carries `noindex`.
-- `robots.txt` and `sitemap.xml`: 200, correct content type, sitemap names the
-  home URL.
-- Every `application/ld+json` block on the home page parses as JSON and has an
-  `@context` of `https://schema.org`.
+- `og.png` is served, and its PNG `IHDR` dimensions match what the `og:image`
+  meta tags claim.
+- The FAQ JSON-LD matches the on-page FAQ character for character.
+- Both `ld+json` blocks parse with an `@context` of `https://schema.org`, and
+  neither reports a `script-src` violation.
+
+Vitest against the Worker, where `robots.txt`, `sitemap.xml` and the
+preview-host rule are decided before the asset server is reached:
+
+- Both files name the requesting host, and follow a different host with no
+  redeploy.
+- `robots.txt` does not `Disallow` the noindexed pages.
+- `*.workers.dev` responses carry `X-Robots-Tag: noindex`; a real domain does
+  not, and neither does a domain that merely contains the string.
 
 ## Out of scope
 

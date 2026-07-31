@@ -2,28 +2,35 @@ import { expect, test } from "@playwright/test";
 
 /**
  * These run through the real wrangler dev server for the same reason
- * security-headers.spec.ts does: robots.txt, sitemap.xml and og.png are copied
- * out of public/ by the build rather than authored into dist, and a unit test
- * driving the Worker directly would not notice if that copy stopped happening.
+ * security-headers.spec.ts does: og.png is copied out of public/ by the build,
+ * and the canonical, Open Graph, robots.txt and sitemap.xml URLs are all
+ * absolutised by the Worker against the request host. A unit test driving the
+ * fetch handler directly would not see whether the asset pipeline still runs
+ * that rewrite.
+ *
+ * No production domain appears anywhere below. That is the point of the
+ * change these cover: the origin is whatever host answered, so the assertions
+ * derive it from the response rather than naming one.
  */
-
-const ORIGIN = "https://teslaport.endlessrainstudio.com";
 
 /** Pages that exist to be used, not found. */
 const APP_PAGES = ["/r", "/s", "/debug"];
 
-test("the home page is indexable and canonical", async ({ page }) => {
-  await page.goto("/");
+const originOf = (url: string): string => new URL(url).origin;
 
-  await expect(page.locator("link[rel=canonical]")).toHaveAttribute("href", `${ORIGIN}/`);
+test("the home page is indexable and canonical to the serving origin", async ({ page }) => {
+  await page.goto("/");
+  const origin = originOf(page.url());
+
+  await expect(page.locator("link[rel=canonical]")).toHaveAttribute("href", `${origin}/`);
   await expect(page.locator("meta[name=robots]")).toHaveAttribute(
     "content",
     /^index,follow/,
   );
-  await expect(page.locator('meta[property="og:url"]')).toHaveAttribute("content", `${ORIGIN}/`);
+  await expect(page.locator('meta[property="og:url"]')).toHaveAttribute("content", `${origin}/`);
   await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
     "content",
-    `${ORIGIN}/og.png`,
+    `${origin}/og.png`,
   );
   await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute(
     "content",
@@ -44,9 +51,45 @@ for (const path of APP_PAGES) {
   test(`${path} is excluded from the index`, async ({ page }) => {
     await page.goto(path);
     await expect(page.locator("meta[name=robots]")).toHaveAttribute("content", "noindex,nofollow");
-    await expect(page.locator("link[rel=canonical]")).toHaveAttribute("href", `${ORIGIN}${path}`);
+    await expect(page.locator("link[rel=canonical]")).toHaveAttribute(
+      "href",
+      `${originOf(page.url())}${path}`,
+    );
   });
 }
+
+/**
+ * The rewrite is what makes every other canonical assertion here meaningful,
+ * so prove it actually follows the host rather than happening to match the one
+ * host the suite uses. 127.0.0.1 is the same server as localhost, reached
+ * under a different name.
+ */
+test("the canonical origin follows the host that served the page", async ({ page }) => {
+  await page.goto("/");
+  const viaLocalhost = await page.locator("link[rel=canonical]").getAttribute("href");
+
+  await page.goto(page.url().replace("localhost", "127.0.0.1"));
+  const viaLoopback = await page.locator("link[rel=canonical]").getAttribute("href");
+
+  expect(viaLocalhost).toContain("localhost");
+  expect(viaLoopback).toContain("127.0.0.1");
+  expect(viaLoopback).not.toBe(viaLocalhost);
+});
+
+/**
+ * Rewriting the document changes its length, and the upstream asset response
+ * carried a Content-Length for the original. If the Worker forwards that
+ * stale value the browser truncates the page — silently, and at the end,
+ * which is exactly where the JSON-LD sits.
+ */
+test("the rewritten document is not truncated", async ({ request }) => {
+  const res = await request.get("/");
+  const body = await res.text();
+
+  const length = res.headers()["content-length"];
+  if (length !== undefined) expect(Number(length)).toBe(Buffer.byteLength(body));
+  expect(body.trimEnd()).toMatch(/<\/html>$/);
+});
 
 /**
  * The pairing pages are kept out of the index by meta-robots and are
@@ -62,7 +105,7 @@ test("robots.txt allows the app pages to be crawled and names the sitemap", asyn
   expect(res.headers()["content-type"]).toContain("text/plain");
 
   const body = await res.text();
-  expect(body).toContain(`Sitemap: ${ORIGIN}/sitemap.xml`);
+  expect(body).toContain(`Sitemap: ${originOf(res.url())}/sitemap.xml`);
   for (const path of APP_PAGES) {
     expect(body, `robots.txt must not Disallow ${path}`).not.toMatch(
       new RegExp(`^\\s*Disallow:\\s*${path}`, "im"),
@@ -75,11 +118,12 @@ test("sitemap.xml lists the home page and nothing noindexed", async ({ request }
   expect(res.status()).toBe(200);
   expect(res.headers()["content-type"]).toContain("xml");
 
+  const origin = originOf(res.url());
   const body = await res.text();
-  expect(body).toContain(`<loc>${ORIGIN}/</loc>`);
+  expect(body).toContain(`<loc>${origin}/</loc>`);
   for (const path of APP_PAGES) {
     expect(body, `${path} is noindex and must not be in the sitemap`).not.toContain(
-      `<loc>${ORIGIN}${path}</loc>`,
+      `<loc>${origin}${path}</loc>`,
     );
   }
 });

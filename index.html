@@ -5,15 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>TeslaPort — Tesla Link Sharing From Phone to Car Browser</title>
     <meta name="description" content="Tesla link sharing without an app or an account. Paste a URL on your phone and it opens in your Tesla's browser a second later, encrypted end to end." />
-    <link rel="canonical" href="https://teslaport.endlessrainstudio.com/" />
+    <!--
+      No canonical tag and no absolute URLs here on purpose. The Worker injects
+      <link rel="canonical"> and fills the origin into the og: URLs below from
+      the host that served the request (see src/worker/index.ts), so moving the
+      site to another domain needs no edit to any page. The og: values stay
+      root-relative; a scraper never sees these, only the rewritten output.
+    -->
     <meta name="robots" content="index,follow,max-image-preview:large" />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="TeslaPort" />
     <meta property="og:title" content="TeslaPort — Tesla link sharing from phone to car" />
     <meta property="og:description" content="Paste a URL on your phone and it opens in your Tesla's browser a second later. No app, no account, encrypted end to end." />
-    <meta property="og:url" content="https://teslaport.endlessrainstudio.com/" />
-    <meta property="og:image" content="https://teslaport.endlessrainstudio.com/og.png" />
+    <meta property="og:url" content="/" />
+    <meta property="og:image" content="/og.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="TeslaPort — Tesla link sharing from phone to car." />
@@ -222,13 +228,19 @@
       allowance would retire that for the sake of a search-engine nicety.
 
       The FAQPage answers below must match the #faq section verbatim.
+
+      No "url" property, and no absolute URL anywhere in here. The Worker
+      absolutises attributes, not the text inside a script element — doing that
+      safely means buffering the whole text node, since a token can straddle
+      two chunks. The property is redundant anyway: <link rel="canonical"> is
+      the authoritative statement of this page's URL, and SoftwareApplication
+      does not require one.
     -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
         "name": "TeslaPort",
-        "url": "https://teslaport.endlessrainstudio.com/",
         "description": "Tesla link sharing without an app or an account. Paste a URL on your phone and it opens in your Tesla's browser a second later, encrypted end to end.",
         "applicationCategory": "UtilitiesApplication",
         "operatingSystem": "Any modern web browser",

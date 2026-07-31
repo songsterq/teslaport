@@ -1,8 +1,0 @@
-# /r, /s and /debug are intentionally crawlable. They carry
-# <meta name="robots" content="noindex,nofollow"> instead. Disallowing them
-# here would stop the crawler fetching them, so it would never read that tag,
-# and the URLs would stay eligible to appear as bare untitled results.
-User-agent: *
-Allow: /
-
-Sitemap: https://teslaport.endlessrainstudio.com/sitemap.xml
