@@ -8,6 +8,9 @@ export default defineConfig({
         test: { name: "shared", include: ["tests/shared/**/*.test.ts"], environment: "node" },
       },
       {
+        test: { name: "client", include: ["tests/client/**/*.test.ts"], environment: "node" },
+      },
+      {
         plugins: [cloudflareTest({ wrangler: { configPath: "./wrangler.jsonc" } })],
         test: { name: "worker", include: ["tests/worker/**/*.test.ts"] },
       },
