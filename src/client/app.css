@@ -426,7 +426,18 @@ h1 .accent { color: var(--accent); display: block; }
   justify-content: center;
 }
 
-ul.links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+ul.links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+ul.links li { display: flex; flex-direction: column; gap: 6px; }
+
+/* Sits above the card rather than inside it, so the anchor stays a pure URL
+   and the whole card stays one uninterrupted tap target. */
+.stamp {
+  font: 600 12px/1 system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  padding-left: 2px;
+}
 
 /*
  * The anchor's text is exactly the URL and nothing else. The end-to-end suite

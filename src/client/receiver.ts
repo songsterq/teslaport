@@ -14,6 +14,7 @@ import { loadHistory, pushHistory, clearHistory, type HistoryEntry } from "./his
 import { connect, type SocketHandle } from "../shared/socket";
 import { resolveSeed, clearSeed, storeRole } from "./session";
 import { renderQr } from "./qr";
+import { formatReceivedAt } from "./timestamp";
 import { resolveStorage } from "./storage";
 
 const { store: storage, volatile: volatileStorage } = resolveStorage();
@@ -25,9 +26,20 @@ let socket: SocketHandle | null = null;
 
 function renderLinks(entries: HistoryEntry[]): void {
   const list = el<HTMLUListElement>("links");
+  const now = Date.now();
   list.textContent = "";
   for (const entry of entries) {
     const item = document.createElement("li");
+
+    // The stamp is a sibling of the anchor, never a child of it. The anchor's
+    // text content is the URL and nothing else — the end-to-end suite compares
+    // it whole — so anything else inside would break the assertion and, worse,
+    // put non-URL text inside the tap target.
+    const stamp = document.createElement("time");
+    stamp.className = "stamp";
+    stamp.dateTime = new Date(entry.ts).toISOString();
+    stamp.textContent = formatReceivedAt(entry.ts, now);
+
     const anchor = document.createElement("a");
     anchor.href = entry.url;
     // Same tab, deliberately: Tesla's browser handles target="_blank"
@@ -35,10 +47,26 @@ function renderLinks(entries: HistoryEntry[]): void {
     // failure mode on a screen with no developer tools.
     anchor.rel = "noopener noreferrer";
     anchor.textContent = entry.url;
+
+    item.appendChild(stamp);
     item.appendChild(anchor);
     list.appendChild(item);
   }
   el("empty").hidden = entries.length > 0;
+}
+
+/**
+ * The car page is opened once and left up for hours, so a relative stamp
+ * written at render time would quietly start lying — "Just now" on a link from
+ * this morning. Only the <time> text is rewritten; rebuilding the list would
+ * replace anchors under a finger mid-tap.
+ */
+function refreshStamps(): void {
+  const now = Date.now();
+  for (const node of el<HTMLUListElement>("links").querySelectorAll("time")) {
+    const ts = Date.parse(node.dateTime);
+    if (!Number.isNaN(ts)) node.textContent = formatReceivedAt(ts, now);
+  }
 }
 
 function setStatus(state: string, label: string): void {
@@ -134,5 +162,7 @@ el("clear").addEventListener("click", () => {
 
 installErrorCapture(storage);
 storeRole(storage, "receiver");
+// Half the "min ago" granularity, so a stamp is never more than 30s stale.
+window.setInterval(refreshStamps, 30_000);
 const resolved = resolveSeed(location.hash, storage, "generate")!;
 void start(resolved.seed);
