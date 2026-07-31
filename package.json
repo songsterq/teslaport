@@ -13,7 +13,7 @@
     "deploy": "npm run build && wrangler deploy",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.worker.json --noEmit && tsc -p tsconfig.test.json --noEmit"
   },
   "keywords": [],
   "author": "",
