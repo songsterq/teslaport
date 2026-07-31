@@ -5,6 +5,15 @@ const ROLE_KEY = "teslaport:role";
 const storedRole = (page: Page): Promise<string | null> =>
   page.evaluate((key) => localStorage.getItem(key), ROLE_KEY);
 
+/**
+ * Poll rather than read once. A URL assertion resolves when navigation
+ * commits, which is before the page's deferred module script has run -- so a
+ * bare read races `storeRole`.
+ */
+async function expectRole(page: Page, role: string | null): Promise<void> {
+  await expect.poll(() => storedRole(page)).toBe(role);
+}
+
 /** A browser that has never opened either role page. */
 async function freshPage(context: BrowserContext): Promise<Page> {
   return context.newPage();
@@ -16,14 +25,14 @@ test("a browser with no stored role sees the chooser", async ({ browser }) => {
   await expect(page).toHaveURL(/\/$/);
   await expect(page.locator('a[href="/r"]')).toBeVisible();
   await expect(page.locator('a[href="/s"]')).toBeVisible();
-  expect(await storedRole(page)).toBeNull();
+  await expectRole(page, null);
 });
 
 test("/ resumes the car after /r has been opened", async ({ browser }) => {
   const page = await freshPage(await browser.newContext());
   await page.goto("/r");
   await expect(page.locator("#qr svg")).toBeVisible();
-  expect(await storedRole(page)).toBe("receiver");
+  await expectRole(page, "receiver");
 
   await page.goto("/");
   // receiver.ts restores the seed-carrying URL, so the fragment comes back too.
@@ -35,7 +44,7 @@ test("/ resumes the phone after /s has been opened", async ({ browser }) => {
   const page = await freshPage(await browser.newContext());
   await page.goto("/s");
   await expect(page.locator("#unpaired")).toBeVisible();
-  expect(await storedRole(page)).toBe("sender");
+  await expectRole(page, "sender");
 
   await page.goto("/");
   await expect(page).toHaveURL(/\/s$/);
@@ -58,7 +67,7 @@ test("/?choose shows the chooser despite a stored role, and does not change it",
   await expect(page).toHaveURL(/\/\?choose$/);
   await expect(page.locator('a[href="/s"]')).toBeVisible();
   // Merely looking at the chooser must not repoint the device.
-  expect(await storedRole(page)).toBe("receiver");
+  await expectRole(page, "receiver");
 });
 
 test("Start over on the car routes to the chooser and can switch role", async ({ browser }) => {
@@ -70,7 +79,7 @@ test("Start over on the car routes to the chooser and can switch role", async ({
   await expect(page.locator('a[href="/s"]')).toBeVisible();
   await page.locator('a[href="/s"]').click();
   await expect(page).toHaveURL(/\/s$/);
-  expect(await storedRole(page)).toBe("sender");
+  await expectRole(page, "sender");
 
   await page.goto("/");
   await expect(page).toHaveURL(/\/s$/);
