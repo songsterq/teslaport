@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TeslaPort — Phone</title>
+    <link rel="stylesheet" href="/src/client/app.css" />
+  </head>
+  <body>
+    <h1>Send to car</h1>
+    <section class="panel" id="paired" hidden>
+      <div class="status"><span class="dot" id="dot"></span><span id="status">Connecting…</span></div>
+      <p><input type="url" id="url" placeholder="Paste a link" autocomplete="off" autocapitalize="off" spellcheck="false" /></p>
+      <div class="row"><button class="primary" id="send" disabled>Send</button></div>
+      <p class="msg" id="msg"></p>
+    </section>
+    <section class="panel" id="unpaired">
+      <p>Not paired yet.</p>
+      <p class="hint">Open TeslaPort on your car screen and scan the QR code, or type the code below.</p>
+      <p><input type="text" id="manual" placeholder="XXXXXX-XXXXXX-XXXXXX-XXXXXX" autocapitalize="characters" autocomplete="off" spellcheck="false" /></p>
+      <div class="row"><button class="primary" id="pair">Pair</button></div>
+      <p class="msg" id="pairmsg"></p>
+    </section>
+    <script type="module" src="/src/client/sender.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TeslaPort — Car</title>
+    <link rel="stylesheet" href="/src/client/app.css" />
+  </head>
+  <body>
+    <h1>TeslaPort</h1>
+    <div class="layout">
+      <section class="panel pair">
+        <div id="qr"></div>
+        <div class="code" id="code"></div>
+        <div class="status"><span class="dot" id="dot"></span><span id="status">Connecting…</span></div>
+        <p class="hint" id="hint">Scan with your phone to pair.</p>
+        <p class="hint" id="bookmark"></p>
+        <div class="row">
+          <button id="burn">Burn code</button>
+          <button id="clear">Clear history</button>
+        </div>
+      </section>
+      <section class="panel feed">
+        <h2>Received links</h2>
+        <ul class="links" id="links"></ul>
+        <p class="empty" id="empty">Nothing yet. Send a link from your phone.</p>
+        <p class="hint"><a href="/debug">Diagnostics</a></p>
+      </section>
+    </div>
+    <script type="module" src="/src/client/receiver.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TeslaPort — Diagnostics</title>
+    <link rel="stylesheet" href="/src/client/app.css" />
+  </head>
+  <body>
+    <h1>Diagnostics</h1>
+    <section class="panel"><dl id="report"></dl></section>
+    <section class="panel">
+      <h2>Recent errors</h2>
+      <pre id="log" class="hint"></pre>
+    </section>
+    <p class="hint"><a href="/r">Back to the car page</a></p>
+    <script type="module" src="/src/client/debug.ts"></script>
+  </body>
+</html>
