@@ -117,6 +117,19 @@ test("an unkeyed receiver neither displaces the car nor acks", async ({
   expect(await received).toBeGreaterThan(12);
 });
 
+// The probe only reports ok once the server answers the byte it sent, so this
+// covers the outbound frame path too — not just the upgrade.
+test("/debug round-trip probes all pass against the real worker", async ({ browser }) => {
+  const page = await (await browser.newContext()).newPage();
+  await page.goto("/debug");
+
+  const row = (label: string) => page.locator(`dt:text-is('${label}') + dd`);
+  await expect(row("WebSocket round-trip")).toContainText(/^ok \(\d+ ms\)$/, { timeout: 15000 });
+  await expect(row("localStorage round-trip")).toHaveText("ok");
+  await expect(row("Crypto round-trip")).toHaveText("ok");
+  await expect(page.locator("#log")).toHaveText("none");
+});
+
 test("a car with a skewed clock reports the skew on /debug", async ({ browser }) => {
   const SKEW_MS = 47 * 60 * 1000;
   const context = await browser.newContext();
