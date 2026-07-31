@@ -69,6 +69,11 @@ field, and local annotation that holds raw bytes.** Do not reach for
 `as BufferSource` casts — a cast silences the checker at one call site and
 leaves the next one to rediscover the problem.
 
+Every module that names the type does `import type { Bytes } from "./bytes";`
+(adjust the relative path). Constructor calls stay as they are:
+`new Uint8Array(n)` already infers `Uint8Array<ArrayBuffer>` and satisfies
+`Bytes` — only annotations need changing.
+
 **Other project-wide rules:**
 
 - **Output target ES2019.** No top-level await, no optional chaining in emitted client code beyond what ES2019 allows (TypeScript will downlevel), no exotic APIs. The Tesla browser is Chromium of unknown vintage and has **no developer tools**.
@@ -114,7 +119,7 @@ leaves the next one to rediscover the problem.
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `encodeBase32(bytes: Uint8Array): string`, `decodeBase32(text: string, expectedBytes: number): Uint8Array`, `CROCKFORD_ALPHABET: string`.
+- Produces: `encodeBase32(bytes: Bytes): string`, `decodeBase32(text: string, expectedBytes: number): Bytes`, `CROCKFORD_ALPHABET: string`.
 
 - [ ] **Step 1: Initialise the project and install dependencies**
 
@@ -358,7 +363,7 @@ const DECODE_MAP: Record<string, number> = (() => {
   return map;
 })();
 
-export function encodeBase32(bytes: Uint8Array): string {
+export function encodeBase32(bytes: Bytes): string {
   let value = 0;
   let bits = 0;
   let out = "";
@@ -376,7 +381,7 @@ export function encodeBase32(bytes: Uint8Array): string {
   return out;
 }
 
-export function decodeBase32(text: string, expectedBytes: number): Uint8Array {
+export function decodeBase32(text: string, expectedBytes: number): Bytes {
   const clean = text.toUpperCase().replace(/[-\s]/g, "");
   // Check length up front. A trailing character contributes only 5 bits, so a
   // 25-character code would fill all 15 bytes and then fall off the end of the
@@ -434,11 +439,11 @@ git commit -m "feat: project scaffolding and Crockford base32 codec"
 - Consumes: `encodeBase32`, `decodeBase32` from `src/shared/base32.ts`.
 - Produces:
   - `SEED_BYTES = 15`, `SEED_CHARS = 24`
-  - `generateSeed(): Uint8Array`
-  - `derivePairing(seed: Uint8Array): Promise<Pairing>` where `interface Pairing { seed: Uint8Array; seedCode: string; roomId: string; roomIdBytes: Uint8Array; contentKey: CryptoKey }`
+  - `generateSeed(): Bytes`
+  - `derivePairing(seed: Bytes): Promise<Pairing>` where `interface Pairing { seed: Bytes; seedCode: string; roomId: string; roomIdBytes: Bytes; contentKey: CryptoKey }`
   - `formatSeedCode(code: string): string` — groups 24 chars as `4×6` with dashes
-  - `parseSeedCode(text: string): Uint8Array`
-  - `base64url(bytes: Uint8Array): string`
+  - `parseSeedCode(text: string): Bytes`
+  - `base64url(bytes: Bytes): string`
   - `buildSenderUrl(origin: string, seedCode: string): string`
   - `buildReceiverUrl(origin: string, seedCode: string): string`
 
@@ -456,7 +461,7 @@ import {
   parseSeedCode, base64url, buildSenderUrl, buildReceiverUrl,
 } from "../../src/shared/pairing";
 
-function nodeHkdf(seed: Uint8Array, info: string, length: number): Uint8Array {
+function nodeHkdf(seed: Bytes, info: string, length: number): Bytes {
   return new Uint8Array(hkdfSync("sha256", seed, new Uint8Array(0), new TextEncoder().encode(info), length));
 }
 
@@ -559,24 +564,24 @@ const ROOM_ID_BYTES = 16;
 const CONTENT_KEY_BYTES = 32;
 
 export interface Pairing {
-  seed: Uint8Array;
+  seed: Bytes;
   seedCode: string;
   roomId: string;
-  roomIdBytes: Uint8Array;
+  roomIdBytes: Bytes;
   contentKey: CryptoKey;
 }
 
-export function generateSeed(): Uint8Array {
+export function generateSeed(): Bytes {
   return crypto.getRandomValues(new Uint8Array(SEED_BYTES));
 }
 
-export function base64url(bytes: Uint8Array): string {
+export function base64url(bytes: Bytes): string {
   let binary = "";
   for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-async function hkdf(seed: Uint8Array, info: string, lengthBytes: number): Promise<Uint8Array> {
+async function hkdf(seed: Bytes, info: string, lengthBytes: number): Promise<Bytes> {
   const ikm = await crypto.subtle.importKey("raw", seed, "HKDF", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits(
     {
@@ -591,7 +596,7 @@ async function hkdf(seed: Uint8Array, info: string, lengthBytes: number): Promis
   return new Uint8Array(bits);
 }
 
-export async function derivePairing(seed: Uint8Array): Promise<Pairing> {
+export async function derivePairing(seed: Bytes): Promise<Pairing> {
   if (seed.length !== SEED_BYTES) {
     throw new Error(`seed must be ${SEED_BYTES} bytes, got ${seed.length}`);
   }
@@ -614,7 +619,7 @@ export function formatSeedCode(code: string): string {
   return (code.match(/.{1,6}/g) ?? []).join("-");
 }
 
-export function parseSeedCode(text: string): Uint8Array {
+export function parseSeedCode(text: string): Bytes {
   return decodeBase32(text, SEED_BYTES);
 }
 
@@ -666,7 +671,7 @@ git commit -m "feat: seed generation and HKDF pairing derivation"
 - Consumes: `Pairing`, `base64url` from `src/shared/pairing.ts`.
 - Produces:
   - From `protocol.ts`: `MAX_PAYLOAD_BYTES = 8192`, `MAX_FRAME_BYTES = 8192 + 64`, `NONCE_BYTES = 12`, `FRESHNESS_WINDOW_MS = 300000`, `ACK_TIMEOUT_MS = 3000`, `RATE_LIMIT_PER_MINUTE = 30`, `SEEN_ID_LIMIT = 200`, `HISTORY_LIMIT = 20`, and `type ControlMessage = { t: "presence"; receivers: number } | { t: "no-receiver" } | { t: "error"; code: "rate_limited" | "too_large" | "unsupported" }`
-  - From `envelope.ts`: `type Payload`, `newMessageId(): string`, `seal(pairing, payload): Promise<Uint8Array>`, `openEnvelope(pairing, frame, now): Promise<OpenResult>`, `type RejectReason = "decrypt" | "malformed" | "scheme" | "stale"`
+  - From `envelope.ts`: `type Payload`, `newMessageId(): string`, `seal(pairing, payload): Promise<Bytes>`, `openEnvelope(pairing, frame, now): Promise<OpenResult>`, `type RejectReason = "decrypt" | "malformed" | "scheme" | "stale"`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -843,7 +848,7 @@ export function newMessageId(): string {
   return base64url(crypto.getRandomValues(new Uint8Array(16)));
 }
 
-export async function seal(pairing: Pairing, payload: Payload): Promise<Uint8Array> {
+export async function seal(pairing: Pairing, payload: Payload): Promise<Bytes> {
   const plaintext = new TextEncoder().encode(JSON.stringify(payload));
   if (plaintext.byteLength > MAX_PAYLOAD_BYTES) {
     throw new Error(`payload too large: ${plaintext.byteLength} > ${MAX_PAYLOAD_BYTES}`);
@@ -885,7 +890,7 @@ function hasAllowedScheme(url: string): boolean {
 
 export async function openEnvelope(
   pairing: Pairing,
-  frame: Uint8Array,
+  frame: Bytes,
   now: number,
 ): Promise<OpenResult> {
   if (frame.byteLength <= NONCE_BYTES + TAG_BITS / 8) {
@@ -1742,8 +1747,8 @@ git commit -m "feat: durable object switchboard with cross-role fan-out"
   - `nextDelay(attempt: number, random?: () => number): number`
   - `type ConnectionStatus = "connecting" | "open" | "closed"`
   - `connect(url: string, handlers: SocketHandlers): SocketHandle` where
-    `interface SocketHandlers { onStatus(s: ConnectionStatus): void; onFrame(frame: Uint8Array): void; onControl(msg: ControlMessage): void }`
-    and `interface SocketHandle { send(frame: Uint8Array): boolean; close(): void }`
+    `interface SocketHandlers { onStatus(s: ConnectionStatus): void; onFrame(frame: Bytes): void; onControl(msg: ControlMessage): void }`
+    and `interface SocketHandle { send(frame: Bytes): boolean; close(): void }`
 
 `send` returns whether the frame actually went out. A silent no-op on a closed socket would leave the sender waiting out a 3-second ack timeout and then blaming the car for a message that never left the phone.
 
@@ -1801,13 +1806,13 @@ export type ConnectionStatus = "connecting" | "open" | "closed";
 
 export interface SocketHandlers {
   onStatus(status: ConnectionStatus): void;
-  onFrame(frame: Uint8Array): void;
+  onFrame(frame: Bytes): void;
   onControl(message: ControlMessage): void;
 }
 
 export interface SocketHandle {
   /** Returns false if the socket was not open and the frame was dropped. */
-  send(frame: Uint8Array): boolean;
+  send(frame: Bytes): boolean;
   close(): void;
 }
 
@@ -1934,7 +1939,7 @@ git commit -m "feat: reconnecting websocket client with jittered backoff"
 **Interfaces:**
 - Consumes: `derivePairing`, `generateSeed`, `parseSeedCode`, `formatSeedCode`, `buildSenderUrl`, `buildReceiverUrl` (pairing); `seal`, `openEnvelope`, `newMessageId` (envelope); `createSeenStore`, `SeenStore`, `KeyValueStore` (replay); `bumpDropCount`, `recordClockDelta` (diagnostics); `loadHistory`, `pushHistory`, `clearHistory` (history); `connect` (socket).
 - Produces:
-  - `src/client/session.ts`: `SEED_STORAGE_KEY`, `type SeedSource = "fragment" | "storage" | "generated"`, `type ResolveMode = "generate" | "require"`, `interface ResolvedSeed { seed: Uint8Array; source: SeedSource }`, `resolveSeed(fragment: string, storage: KeyValueStore, mode: ResolveMode): ResolvedSeed | null`, `storeSeed(storage: KeyValueStore, seed: Uint8Array): void`, `clearSeed(storage: KeyValueStore): void`
+  - `src/client/session.ts`: `SEED_STORAGE_KEY`, `type SeedSource = "fragment" | "storage" | "generated"`, `type ResolveMode = "generate" | "require"`, `interface ResolvedSeed { seed: Bytes; source: SeedSource }`, `resolveSeed(fragment: string, storage: KeyValueStore, mode: ResolveMode): ResolvedSeed | null`, `storeSeed(storage: KeyValueStore, seed: Bytes): void`, `clearSeed(storage: KeyValueStore): void`
   - `src/client/qr.ts`: `renderQr(target: HTMLElement, text: string): void`
 
 `resolveSeed` takes a `mode` so the two pages differ in exactly one respect: the car generates a seed when none exists, the phone does not.
@@ -2038,11 +2043,11 @@ export type SeedSource = "fragment" | "storage" | "generated";
 export type ResolveMode = "generate" | "require";
 
 export interface ResolvedSeed {
-  seed: Uint8Array;
+  seed: Bytes;
   source: SeedSource;
 }
 
-function tryParse(code: string | null): Uint8Array | null {
+function tryParse(code: string | null): Bytes | null {
   if (!code) return null;
   try {
     const seed = parseSeedCode(code);
@@ -2052,7 +2057,7 @@ function tryParse(code: string | null): Uint8Array | null {
   }
 }
 
-export function storeSeed(storage: KeyValueStore, seed: Uint8Array): void {
+export function storeSeed(storage: KeyValueStore, seed: Bytes): void {
   storage.setItem(SEED_STORAGE_KEY, encodeBase32(seed));
 }
 
@@ -2314,7 +2319,7 @@ function setStatus(state: string, label: string): void {
   el("status").textContent = label;
 }
 
-async function handleFrame(frame: Uint8Array): Promise<void> {
+async function handleFrame(frame: Bytes): Promise<void> {
   const result = await openEnvelope(pairing, frame, Date.now());
   if (!result.ok) {
     bumpDropCount(storage, result.reason);
@@ -2339,7 +2344,7 @@ async function handleFrame(frame: Uint8Array): Promise<void> {
   socket?.send(ack);
 }
 
-async function start(seed: Uint8Array): Promise<void> {
+async function start(seed: Bytes): Promise<void> {
   pairing = await derivePairing(seed);
   seen = createSeenStore(storage);
 
@@ -2606,7 +2611,7 @@ function bootstrap(): void {
     }, ACK_TIMEOUT_MS);
   }
 
-  async function handleFrame(frame: Uint8Array): Promise<void> {
+  async function handleFrame(frame: Bytes): Promise<void> {
     const result = await openEnvelope(pairing, frame, Date.now());
     if (!result.ok || result.payload.t !== "ack") return;
     if (!pending || pending.id !== result.payload.id) return;
@@ -2615,7 +2620,7 @@ function bootstrap(): void {
     message("Sent ✓", "ok");
   }
 
-  async function start(seed: Uint8Array): Promise<void> {
+  async function start(seed: Bytes): Promise<void> {
     pairing = await derivePairing(seed);
     el("unpaired").hidden = true;
     el("paired").hidden = false;
