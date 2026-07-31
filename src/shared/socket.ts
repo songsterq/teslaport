@@ -27,9 +27,6 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
   let attempt = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let closed = false;
-  // Event-driven only — never read navigator.onLine at startup (that heuristic
-  // can falsely report offline and suppress the initial connection forever).
-  let networkUp = true;
 
   function clearTimer(): void {
     if (timer !== null) {
@@ -39,7 +36,7 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
   }
 
   function scheduleReconnect(): void {
-    if (closed || !networkUp || timer !== null) return;
+    if (closed || timer !== null) return;
     const delay = nextDelay(attempt);
     attempt += 1;
     timer = setTimeout(() => {
@@ -50,7 +47,7 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
 
   /** Immediate reconnect when the tab wakes or the network returns (like visibility). */
   function reconnectNow(): void {
-    if (closed || !networkUp || ws !== null) return;
+    if (closed || ws !== null) return;
     clearTimer();
     attempt = 0;
     open();
@@ -60,9 +57,16 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
     if (document.visibilityState === "visible") reconnectNow();
   }
 
+  /**
+   * `offline` is a hint that lets us paint "closed" at once instead of waiting
+   * out a socket timeout — never a gate on reconnecting. Some browsers fire
+   * `offline` without a matching `online`, and suspending retries until that
+   * pair completes strands the page on a dead socket until someone reloads it.
+   * Retrying into a genuinely down network just fails and backs off, which is
+   * far cheaper than the failure it avoids.
+   */
   function onOffline(): void {
     if (closed) return;
-    networkUp = false;
     clearTimer();
     // Detach before close so the async close event does not race a reconnect,
     // and paint "closed" immediately (close events are not synchronous).
@@ -76,15 +80,15 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
       }
     }
     handlers.onStatus("closed");
+    scheduleReconnect();
   }
 
   function onOnline(): void {
-    networkUp = true;
     reconnectNow();
   }
 
   function open(): void {
-    if (closed || !networkUp) return;
+    if (closed) return;
     handlers.onStatus("connecting");
     const socket = new WebSocket(url);
     socket.binaryType = "arraybuffer";
