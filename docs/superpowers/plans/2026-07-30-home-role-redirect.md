@@ -159,9 +159,9 @@ EOF
 
 - [ ] **Step 1: Write the failing tests for path mapping**
 
-Add to `tests/shared/session.test.ts` (or a new `tests/shared/home.test.ts` if you prefer isolation — either is fine; this plan uses `tests/client/home.test.ts`):
+Add to `tests/shared/session.test.ts` (or a new `tests/shared/home.test.ts` if you prefer isolation — either is fine; this plan uses `tests/shared/home.test.ts`):
 
-Create `tests/client/home.test.ts`:
+Create `tests/shared/home.test.ts`:
 
 ```ts
 import { describe, it, expect } from "vitest";
@@ -185,7 +185,7 @@ describe("redirectTarget", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run tests/client/home.test.ts -v`
+Run: `npx vitest run tests/shared/home.test.ts -v`
 
 Expected: FAIL — module or export missing.
 
@@ -249,14 +249,14 @@ Use `location.replace` (not `assign`) so Back does not return to the chooser.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `npx vitest run tests/client/home.test.ts tests/shared/session.test.ts -v`
+Run: `npx vitest run tests/shared/home.test.ts tests/shared/session.test.ts -v`
 
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/client/home.ts index.html tests/client/home.test.ts
+git add src/client/home.ts index.html tests/shared/home.test.ts
 git commit -m "$(cat <<'EOF'
 feat: redirect home to last role when known
 
@@ -338,7 +338,7 @@ In `s/index.html`, add the link after both sections so it is reachable in either
 Run:
 
 ```bash
-npm run typecheck && npx vitest run tests/shared/session.test.ts tests/client/home.test.ts -v
+npm run typecheck && npx vitest run tests/shared/session.test.ts tests/shared/home.test.ts -v
 ```
 
 Expected: PASS / no type errors.
