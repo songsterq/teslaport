@@ -45,6 +45,14 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
     }, delay);
   }
 
+  function onVisibilityChange(): void {
+    if (document.visibilityState === "visible" && !closed && ws === null) {
+      clearTimer();
+      attempt = 0;
+      open();
+    }
+  }
+
   function open(): void {
     if (closed) return;
     handlers.onStatus("connecting");
@@ -53,11 +61,14 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
     ws = socket;
 
     socket.addEventListener("open", () => {
+      // Ignore late open after close() or after a newer socket replaced this one.
+      if (closed || ws !== socket) return;
       attempt = 0;
       handlers.onStatus("open");
     });
 
     socket.addEventListener("message", (event) => {
+      if (closed || ws !== socket) return;
       const data = (event as MessageEvent).data;
       if (typeof data === "string") {
         try {
@@ -73,6 +84,7 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
     const drop = (): void => {
       if (ws !== socket) return;
       ws = null;
+      if (closed) return;
       handlers.onStatus("closed");
       scheduleReconnect();
     };
@@ -82,13 +94,7 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
 
   // Reconnect immediately when the screen wakes rather than waiting out a backoff.
   if (typeof document !== "undefined") {
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible" && !closed && ws === null) {
-        clearTimer();
-        attempt = 0;
-        open();
-      }
-    });
+    document.addEventListener("visibilitychange", onVisibilityChange);
   }
 
   open();
@@ -106,6 +112,9 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
     close() {
       closed = true;
       clearTimer();
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+      }
       if (ws !== null) ws.close();
       ws = null;
     },
