@@ -1,0 +1,18 @@
+{
+  "name": "teslaport",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-07-01",
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "ROOM", "class_name": "Room" }]
+  },
+  // new_sqlite_classes (not new_classes) is required for Durable Objects
+  // on the free plan. The class stores nothing.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
+  "observability": { "enabled": false }
+}
