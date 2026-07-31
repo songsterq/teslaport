@@ -124,6 +124,23 @@ h3 {
 }
 
 .site-footer { border-top: 1px solid var(--line); padding-block: 32px; margin-top: 56px; }
+
+/*
+ * Pages whose content is shorter than the viewport would otherwise leave the
+ * footer floating with dead space beneath it. Pin it to the bottom, and let it
+ * fall below the fold normally once the content is tall enough.
+ */
+body.tail {
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+/* width:100% for the same reason as .hero .wrap and .foot-links: `margin: 0
+   auto` on a flex item suppresses stretch and sizes it to its content, which
+   pulls the whole column inward and off the header's left edge. */
+body.tail main { flex: 1 0 auto; width: 100%; }
+body.tail .site-footer { margin-top: 0; }
 .site-footer .wrap {
   display: flex;
   align-items: center;
@@ -132,6 +149,36 @@ h3 {
   flex-wrap: wrap;
 }
 .site-footer .meta { color: var(--fg-dim); font-size: 13.5px; }
+
+/* Aligned to the phone column above it rather than the full page width, so
+   the two links sit flush with the edges of the panels. width:100% is needed
+   because .site-footer .wrap is itself a flex container — without it this is
+   a flex item and shrinks to its content, stranding both links mid-row. */
+.foot-links {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.foot-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  /* Comfortably past the 44px touch minimum without drawing a button around
+     it — these are the quietest things on the page. */
+  min-height: 44px;
+  font: 500 14.5px/1 system-ui, sans-serif;
+  color: var(--fg-dim);
+  text-decoration: none;
+}
+
+.foot-link svg { width: 16px; height: 16px; flex: none; }
+.foot-link:active { color: var(--accent); }
 
 /* ---------- controls ---------- */
 
