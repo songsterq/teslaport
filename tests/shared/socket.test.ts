@@ -1,11 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { connect, nextDelay } from "../../src/shared/socket";
-import {
-  HEARTBEAT_INTERVAL_MS,
-  HEARTBEAT_TIMEOUT_MS,
-  PING_FRAME,
-  PONG_FRAME,
-} from "../../src/shared/protocol";
+import { HEARTBEAT_INTERVAL_MS, PING_FRAME, PONG_FRAME } from "../../src/shared/protocol";
 
 /** Minimal stand-in for the browser WebSocket, driven by hand from the tests. */
 class FakeSocket {

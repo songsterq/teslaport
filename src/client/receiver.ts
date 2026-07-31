@@ -12,7 +12,7 @@ import { createSeenStore, type SeenStore } from "../shared/replay";
 import { bumpDropCount, recordClockDelta, installErrorCapture } from "../shared/diagnostics";
 import { loadHistory, pushHistory, clearHistory, type HistoryEntry } from "./history";
 import { connect, type SocketHandle } from "../shared/socket";
-import { resolveSeed, storeSeed, clearSeed } from "./session";
+import { resolveSeed, clearSeed } from "./session";
 import { renderQr } from "./qr";
 
 const storage = window.localStorage;

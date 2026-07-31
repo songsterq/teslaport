@@ -40,7 +40,9 @@ export class Room implements DurableObject {
 
   constructor(
     private ctx: DurableObjectState,
-    private env: unknown,
+    // The runtime passes bindings here; this object uses none, and holding an
+    // unread reference to them is the sort of thing that grows into use later.
+    _env: unknown,
   ) {
     // Handled by the runtime: a ping never wakes this object, never reaches
     // webSocketMessage, and never spends rate limit.
