@@ -1,3 +1,5 @@
+import type { Bytes } from "./bytes";
+
 export const CROCKFORD_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
 const DECODE_MAP: Record<string, number> = (() => {
@@ -12,7 +14,7 @@ const DECODE_MAP: Record<string, number> = (() => {
   return map;
 })();
 
-export function encodeBase32(bytes: Uint8Array): string {
+export function encodeBase32(bytes: Bytes): string {
   let value = 0;
   let bits = 0;
   let out = "";
@@ -30,7 +32,7 @@ export function encodeBase32(bytes: Uint8Array): string {
   return out;
 }
 
-export function decodeBase32(text: string, expectedBytes: number): Uint8Array {
+export function decodeBase32(text: string, expectedBytes: number): Bytes {
   const clean = text.toUpperCase().replace(/[-\s]/g, "");
   const requiredLength = Math.ceil((expectedBytes * 8) / 5);
   if (clean.length !== requiredLength) {
