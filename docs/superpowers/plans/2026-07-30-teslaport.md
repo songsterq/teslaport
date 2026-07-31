@@ -190,23 +190,24 @@ export default defineConfig({
 }
 ```
 
-`vitest.config.ts` — two projects, because the shared modules run in Node and the Durable Object needs the workers pool:
+`vitest.config.ts` — two projects, because the shared modules run in Node and the Durable Object needs the workers pool.
+
+As of `@cloudflare/vitest-pool-workers` 0.19 (Vitest 4), the old `defineWorkersProject` helper from the `/config` subpath is gone; the pool is now a Vite **plugin**, `cloudflareTest`, imported from the package root. Install current versions — do not pin back to 0.12/Vitest 3 to restore the old helper, which drags in a `wrangler`/`miniflare`/`undici` tree carrying high-severity advisories including a WebSocket parser crash.
 
 ```ts
 import { defineConfig } from "vitest/config";
-import { defineWorkersProject } from "@cloudflare/vitest-pool-workers/config";
+import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
 
 export default defineConfig({
   test: {
     projects: [
-      { test: { name: "shared", include: ["tests/shared/**/*.test.ts"], environment: "node" } },
-      defineWorkersProject({
-        test: {
-          name: "worker",
-          include: ["tests/worker/**/*.test.ts"],
-          poolOptions: { workers: { wrangler: { configPath: "./wrangler.jsonc" } } },
-        },
-      }),
+      {
+        test: { name: "shared", include: ["tests/shared/**/*.test.ts"], environment: "node" },
+      },
+      {
+        plugins: [cloudflareTest({ wrangler: { configPath: "./wrangler.jsonc" } })],
+        test: { name: "worker", include: ["tests/worker/**/*.test.ts"] },
+      },
     ],
   },
 });
@@ -325,6 +326,16 @@ export function encodeBase32(bytes: Uint8Array): string {
 
 export function decodeBase32(text: string, expectedBytes: number): Uint8Array {
   const clean = text.toUpperCase().replace(/[-\s]/g, "");
+  // Check length up front. A trailing character contributes only 5 bits, so a
+  // 25-character code would fill all 15 bytes and then fall off the end of the
+  // loop without ever tripping a per-byte guard.
+  const requiredLength = Math.ceil((expectedBytes * 8) / 5);
+  if (clean.length !== requiredLength) {
+    throw new Error(
+      `code has the wrong length: expected ${requiredLength} characters for `
+        + `${expectedBytes} bytes, got ${clean.length}`,
+    );
+  }
   const out = new Uint8Array(expectedBytes);
   let value = 0;
   let bits = 0;
@@ -338,15 +349,9 @@ export function decodeBase32(text: string, expectedBytes: number): Uint8Array {
     value = (value << 5) | digit;
     bits += 5;
     if (bits >= 8) {
-      if (written >= expectedBytes) {
-        throw new Error(`code has the wrong length: expected ${expectedBytes} bytes`);
-      }
       out[written++] = (value >>> (bits - 8)) & 0xff;
       bits -= 8;
     }
-  }
-  if (written !== expectedBytes) {
-    throw new Error(`code has the wrong length: expected ${expectedBytes} bytes, decoded ${written}`);
   }
   return out;
 }
