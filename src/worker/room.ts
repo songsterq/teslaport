@@ -5,9 +5,8 @@ import {
   PING_FRAME,
   PONG_FRAME,
   type ControlMessage,
+  type Role,
 } from "../shared/protocol";
-
-type Role = "sender" | "receiver";
 
 interface SocketState {
   /** Rate-limit window. */

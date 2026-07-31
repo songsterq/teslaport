@@ -27,6 +27,14 @@ export const HEARTBEAT_INTERVAL_MS = 20_000;
  */
 export const HEARTBEAT_TIMEOUT_MS = 50_000;
 
+/**
+ * The two sides of a room. Shared vocabulary, not client- or worker-specific:
+ * it is the `?role=` query parameter on the socket URL, the hibernation tag the
+ * room stores per socket, and the value `/` reads back to resume a page. One
+ * definition so those three can never drift apart.
+ */
+export type Role = "receiver" | "sender";
+
 export type ControlMessage =
   | { t: "presence"; receivers: number }
   | { t: "no-receiver" }

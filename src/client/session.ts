@@ -2,6 +2,7 @@ import { encodeBase32 } from "../shared/base32";
 import type { Bytes } from "../shared/bytes";
 import { parseSeedCode, generateSeed, SEED_BYTES } from "../shared/pairing";
 import type { KeyValueStore } from "../shared/replay";
+import type { Role } from "../shared/protocol";
 
 export const SEED_STORAGE_KEY = "teslaport:seed";
 
@@ -32,8 +33,6 @@ export function clearSeed(storage: KeyValueStore): void {
 }
 
 export const ROLE_STORAGE_KEY = "teslaport:role";
-
-export type Role = "receiver" | "sender";
 
 export function storeRole(storage: KeyValueStore, role: Role): void {
   storage.setItem(ROLE_STORAGE_KEY, role);

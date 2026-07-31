@@ -1,4 +1,5 @@
-import { loadRole, type Role } from "./session";
+import { loadRole } from "./session";
+import type { Role } from "../shared/protocol";
 
 /**
  * Query flag that suppresses the redirect. The "Start over" link on `/r` and
