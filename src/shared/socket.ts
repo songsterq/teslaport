@@ -27,7 +27,9 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
   let attempt = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let closed = false;
-  let online = typeof navigator === "undefined" || navigator.onLine;
+  // Event-driven only — never read navigator.onLine at startup (that heuristic
+  // can falsely report offline and suppress the initial connection forever).
+  let networkUp = true;
 
   function clearTimer(): void {
     if (timer !== null) {
@@ -37,7 +39,7 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
   }
 
   function scheduleReconnect(): void {
-    if (closed || timer !== null) return;
+    if (closed || !networkUp || timer !== null) return;
     const delay = nextDelay(attempt);
     attempt += 1;
     timer = setTimeout(() => {
@@ -46,38 +48,43 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
     }, delay);
   }
 
-  function onVisibilityChange(): void {
-    if (document.visibilityState === "visible" && !closed && ws === null) {
-      clearTimer();
-      attempt = 0;
-      open();
-    }
-  }
-
-  function onOffline(): void {
-    if (closed) return;
-    online = false;
-    clearTimer();
-    const socket = ws;
-    ws = null;
-    socket?.close();
-    handlers.onStatus("closed");
-  }
-
-  function onOnline(): void {
-    if (closed || ws !== null) return;
-    online = true;
+  /** Immediate reconnect when the tab wakes or the network returns (like visibility). */
+  function reconnectNow(): void {
+    if (closed || !networkUp || ws !== null) return;
     clearTimer();
     attempt = 0;
     open();
   }
 
-  function open(): void {
+  function onVisibilityChange(): void {
+    if (document.visibilityState === "visible") reconnectNow();
+  }
+
+  function onOffline(): void {
     if (closed) return;
-    if (!online) {
-      handlers.onStatus("closed");
-      return;
+    networkUp = false;
+    clearTimer();
+    // Detach before close so the async close event does not race a reconnect,
+    // and paint "closed" immediately (close events are not synchronous).
+    const socket = ws;
+    ws = null;
+    if (socket !== null) {
+      try {
+        socket.close();
+      } catch {
+        // Already closing.
+      }
     }
+    handlers.onStatus("closed");
+  }
+
+  function onOnline(): void {
+    networkUp = true;
+    reconnectNow();
+  }
+
+  function open(): void {
+    if (closed || !networkUp) return;
     handlers.onStatus("connecting");
     const socket = new WebSocket(url);
     socket.binaryType = "arraybuffer";
@@ -109,7 +116,7 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
       ws = null;
       if (closed) return;
       handlers.onStatus("closed");
-      if (online) scheduleReconnect();
+      scheduleReconnect();
     };
     socket.addEventListener("close", drop);
     socket.addEventListener("error", drop);

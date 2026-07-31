@@ -61,13 +61,19 @@ test("reconnects the car after the network drops", async ({ browser }) => {
   const car = await openCar(browser);
   const context = car.page.context();
 
+  // Playwright's setOffline flips navigator.onLine but does not fire the
+  // window offline/online events or close localhost WebSockets. Real browsers
+  // fire those events on network loss; dispatch them so the socket client
+  // path under test matches production.
   await context.setOffline(true);
+  await car.page.evaluate(() => window.dispatchEvent(new Event("offline")));
   await expect(car.page.locator("#dot")).toHaveAttribute(
     "data-state",
     "closed",
   );
 
   await context.setOffline(false);
+  await car.page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect(car.page.locator("#dot")).toHaveAttribute("data-state", "open", {
     timeout: 20000,
   });
