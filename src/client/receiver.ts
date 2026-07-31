@@ -12,7 +12,7 @@ import { createSeenStore, type SeenStore } from "../shared/replay";
 import { bumpDropCount, recordClockDelta, installErrorCapture } from "../shared/diagnostics";
 import { loadHistory, pushHistory, clearHistory, type HistoryEntry } from "./history";
 import { connect, type SocketHandle } from "../shared/socket";
-import { resolveSeed, clearSeed } from "./session";
+import { resolveSeed, clearSeed, storeRole } from "./session";
 import { renderQr } from "./qr";
 
 const storage = window.localStorage;
@@ -126,5 +126,6 @@ el("clear").addEventListener("click", () => {
 });
 
 installErrorCapture(storage);
+storeRole(storage, "receiver");
 const resolved = resolveSeed(location.hash, storage, "generate")!;
 void start(resolved.seed);
