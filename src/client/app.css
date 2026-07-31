@@ -355,6 +355,17 @@ h1 .accent { color: var(--accent); display: block; }
    just a list caption. */
 .panel h2 { font-size: 20px; letter-spacing: -0.015em; margin-bottom: 20px; max-width: none; }
 
+/* Caption on the left, "Clear history" pushed to the right edge, both on the
+   baseline row above the list the button acts on. */
+.feed-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.feed-head h2 { margin-bottom: 0; }
+
 /*
  * The QR keeps its own white card — a scanner needs the quiet zone and the
  * contrast — and the portal ring sits outside it rather than over it.
