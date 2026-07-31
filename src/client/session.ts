@@ -31,6 +31,20 @@ export function clearSeed(storage: KeyValueStore): void {
   storage.removeItem(SEED_STORAGE_KEY);
 }
 
+export const ROLE_STORAGE_KEY = "teslaport:role";
+
+export type Role = "receiver" | "sender";
+
+export function storeRole(storage: KeyValueStore, role: Role): void {
+  storage.setItem(ROLE_STORAGE_KEY, role);
+}
+
+export function loadRole(storage: KeyValueStore): Role | null {
+  const value = storage.getItem(ROLE_STORAGE_KEY);
+  if (value === "receiver" || value === "sender") return value;
+  return null;
+}
+
 export function resolveSeed(
   fragment: string,
   storage: KeyValueStore,
