@@ -117,6 +117,41 @@ test("an unkeyed receiver neither displaces the car nor acks", async ({
   expect(await received).toBeGreaterThan(12);
 });
 
+test("a car with a skewed clock reports the skew on /debug", async ({ browser }) => {
+  const SKEW_MS = 47 * 60 * 1000;
+  const context = await browser.newContext();
+  // Every page in this context believes it is 47 minutes ahead — exactly how a
+  // car with a wrong clock behaves. Every link then fails the freshness check.
+  await context.addInitScript({
+    content: `{ const realNow = Date.now.bind(Date); Date.now = () => realNow() + ${SKEW_MS}; }`,
+  });
+
+  const car = await context.newPage();
+  await car.goto("/r");
+  await expect(car.locator("#dot")).toHaveAttribute("data-state", "open");
+  const code = new URL(car.url()).hash.replace(/^#/, "");
+
+  const phone = await (await browser.newContext()).newPage();
+  await phone.goto(`/s#${code}`);
+  await expect(phone.locator("#status")).toHaveText("Car connected");
+  await phone.locator("#url").fill("https://example.com/stale");
+  await phone.locator("#send").click();
+
+  // The car drops the link and never acks it.
+  await expect(phone.locator("#msg")).toContainText("No confirmation from the car");
+  await expect(car.locator("ul#links a")).toHaveCount(0);
+
+  // /debug must name the cause rather than reporting nothing received.
+  const debugPage = await context.newPage();
+  await debugPage.goto("/debug");
+  await expect(
+    debugPage.locator("dt:text-is('Rejected messages') + dd"),
+  ).toContainText("stale 1");
+  await expect(
+    debugPage.locator("dt:text-is('Clock delta vs last sender (ms)') + dd"),
+  ).toContainText("OVER THE 5 MINUTE WINDOW");
+});
+
 test("burning the code strands the old phone", async ({ browser }) => {
   const car = await openCar(browser);
   const oldCode = car.code;
