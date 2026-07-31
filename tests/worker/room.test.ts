@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { SELF } from "cloudflare:test";
+import { PING_FRAME, PONG_FRAME } from "../../src/shared/protocol";
 
 const ROOM = "AAAAAAAAAAAAAAAAAAAAAA"; // 22 chars, shape-valid
 const BASE = "https://teslaport.test";
@@ -179,6 +180,35 @@ describe("Room durable object", () => {
     await new Promise((resolve) => setTimeout(resolve, 25));
     const sender = await connect("sender", room);
     expect(await control(sender)).toEqual({ t: "presence", receivers: 0 });
+  });
+
+  it("answers a heartbeat ping without fanning it out to the other role", async () => {
+    const room = "NNNNNNNNNNNNNNNNNNNNNN";
+    const receiver = await connect("receiver", room);
+    const sender = await connect("sender", room);
+    await control(sender); // presence
+
+    const quiet = expectNoMessage(receiver);
+    const pong = nextMessage(sender);
+    sender.send(PING_FRAME);
+    expect(await pong).toBe(PONG_FRAME);
+    // A ping is between the client and the edge; the car must never see it.
+    await quiet;
+  });
+
+  // The auto-response pair is handled by the runtime, so pings never reach
+  // webSocketMessage. If they did, a 20-second heartbeat would eat the budget
+  // a real sender needs.
+  it("does not spend rate limit on heartbeats", async () => {
+    const room = "PPPPPPPPPPPPPPPPPPPPPP";
+    const receiver = await connect("receiver", room);
+    const sender = await connect("sender", room);
+    await control(sender); // presence
+
+    for (let i = 0; i < 60; i++) sender.send(PING_FRAME);
+    const relayed = nextMessage(receiver);
+    sender.send(new Uint8Array([7]));
+    expect(new Uint8Array((await relayed) as ArrayBuffer)).toEqual(new Uint8Array([7]));
   });
 
   it("rate limits receiver frames symmetrically", async () => {

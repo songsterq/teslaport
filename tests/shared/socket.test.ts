@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { connect, nextDelay } from "../../src/shared/socket";
+import {
+  HEARTBEAT_INTERVAL_MS,
+  HEARTBEAT_TIMEOUT_MS,
+  PING_FRAME,
+  PONG_FRAME,
+} from "../../src/shared/protocol";
 
 /** Minimal stand-in for the browser WebSocket, driven by hand from the tests. */
 class FakeSocket {
@@ -9,6 +15,7 @@ class FakeSocket {
   readyState = 0;
   binaryType = "";
   closed = false;
+  sent: string[] = [];
   private listeners = new Map<string, Array<(event: unknown) => void>>();
 
   constructor(readonly url: string) {
@@ -36,7 +43,9 @@ class FakeSocket {
     this.emit("close");
   }
 
-  send(): void {}
+  send(data: string): void {
+    this.sent.push(data);
+  }
 }
 
 /** Installs the browser globals `connect` reaches for, and returns a dispatcher. */
@@ -159,6 +168,94 @@ describe("reconnecting socket", () => {
 
     env.dispatch("online");
     expect(FakeSocket.instances).toHaveLength(2);
+    env.restore();
+  });
+
+  it("pings while the socket is open", () => {
+    const { env } = start();
+    const socket = FakeSocket.instances[0]!;
+    socket.fireOpen();
+    expect(socket.sent).toEqual([]);
+
+    vi.advanceTimersByTime(HEARTBEAT_INTERVAL_MS);
+    expect(socket.sent).toEqual([PING_FRAME]);
+    env.restore();
+  });
+
+  it("swallows the pong instead of surfacing it as a control message", () => {
+    const env = installBrowserEnv();
+    vi.useFakeTimers();
+    const controls: unknown[] = [];
+    connect("ws://teslaport.test/ws/room?role=sender", {
+      onStatus: () => {},
+      onFrame: () => {},
+      onControl: (message) => void controls.push(message),
+    });
+    const socket = FakeSocket.instances[0]!;
+    socket.fireOpen();
+
+    socket.emit("message", { data: PONG_FRAME });
+    socket.emit("message", { data: '{"t":"presence","receivers":1}' });
+    expect(controls).toEqual([{ t: "presence", receivers: 1 }]);
+    env.restore();
+  });
+
+  /**
+   * The failure this exists for: a socket whose network died without a TCP
+   * close stays readyState OPEN, so the page shows a working connection and
+   * the room keeps counting it. Only the missing replies reveal it.
+   */
+  it("tears down and reconnects a socket whose pings stop coming back", () => {
+    const { statuses, env } = start();
+    const socket = FakeSocket.instances[0]!;
+    socket.fireOpen();
+    expect(last(statuses)).toBe("open");
+
+    // Two pings go out and nothing comes back; the third tick is past the
+    // timeout and tears the socket down.
+    vi.advanceTimersByTime(HEARTBEAT_INTERVAL_MS * 2);
+    expect(socket.sent).toEqual([PING_FRAME, PING_FRAME]);
+    expect(socket.closed).toBe(false);
+    expect(last(statuses)).toBe("open");
+
+    vi.advanceTimersByTime(HEARTBEAT_INTERVAL_MS);
+    expect(socket.closed).toBe(true);
+    expect(last(statuses)).toBe("closed");
+
+    vi.advanceTimersByTime(60_000);
+    expect(FakeSocket.instances.length).toBeGreaterThan(1);
+    env.restore();
+  });
+
+  it("keeps a socket alive as long as any traffic arrives", () => {
+    const { statuses, env } = start();
+    const socket = FakeSocket.instances[0]!;
+    socket.fireOpen();
+
+    for (let i = 0; i < 10; i++) {
+      vi.advanceTimersByTime(HEARTBEAT_INTERVAL_MS);
+      socket.emit("message", { data: PONG_FRAME });
+    }
+    expect(last(statuses)).toBe("open");
+    expect(socket.closed).toBe(false);
+    expect(FakeSocket.instances).toHaveLength(1);
+    env.restore();
+  });
+
+  it("stops pinging after the caller closes", () => {
+    const env = installBrowserEnv();
+    vi.useFakeTimers();
+    const handle = connect("ws://teslaport.test/ws/room?role=receiver", {
+      onStatus: () => {},
+      onFrame: () => {},
+      onControl: () => {},
+    });
+    const socket = FakeSocket.instances[0]!;
+    socket.fireOpen();
+    vi.advanceTimersByTime(HEARTBEAT_INTERVAL_MS);
+    handle.close();
+    vi.advanceTimersByTime(HEARTBEAT_INTERVAL_MS * 10);
+    expect(socket.sent).toEqual([PING_FRAME]);
     env.restore();
   });
 

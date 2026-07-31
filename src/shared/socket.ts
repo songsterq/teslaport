@@ -1,5 +1,10 @@
 import type { Bytes } from "./bytes";
-import type { ControlMessage } from "./protocol";
+import {
+  HEARTBEAT_INTERVAL_MS,
+  HEARTBEAT_TIMEOUT_MS,
+  PING_FRAME,
+  type ControlMessage,
+} from "./protocol";
 
 export type ConnectionStatus = "connecting" | "open" | "closed";
 
@@ -26,6 +31,8 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
   let ws: WebSocket | null = null;
   let attempt = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let heartbeat: ReturnType<typeof setInterval> | null = null;
+  let lastSeenAt = 0;
   let closed = false;
 
   function clearTimer(): void {
@@ -33,6 +40,60 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
       clearTimeout(timer);
       timer = null;
     }
+  }
+
+  function stopHeartbeat(): void {
+    if (heartbeat !== null) {
+      clearInterval(heartbeat);
+      heartbeat = null;
+    }
+  }
+
+  /**
+   * Detaches the current socket, paints "closed" and queues a retry.
+   *
+   * Painting immediately matters because close events are not synchronous — and
+   * for a half-open socket they may never arrive at all.
+   */
+  function dropAndReconnect(): void {
+    if (closed) return;
+    stopHeartbeat();
+    clearTimer();
+    const socket = ws;
+    ws = null;
+    if (socket !== null) {
+      try {
+        socket.close();
+      } catch {
+        // Already closing.
+      }
+    }
+    handlers.onStatus("closed");
+    scheduleReconnect();
+  }
+
+  /**
+   * A socket whose network died without a TCP close stays `readyState === OPEN`
+   * forever: the car keeps showing "Ready to receive", the room keeps counting
+   * it, and the phone keeps showing a green light for a car that is gone.
+   * Nothing surfaces it but traffic, so send some and watch for the answer.
+   * The server auto-responds without waking the Durable Object.
+   */
+  function startHeartbeat(): void {
+    stopHeartbeat();
+    lastSeenAt = Date.now();
+    heartbeat = setInterval(() => {
+      if (closed || ws === null) return;
+      if (Date.now() - lastSeenAt > HEARTBEAT_TIMEOUT_MS) {
+        dropAndReconnect();
+        return;
+      }
+      try {
+        ws.send(PING_FRAME);
+      } catch {
+        dropAndReconnect();
+      }
+    }, HEARTBEAT_INTERVAL_MS);
   }
 
   function scheduleReconnect(): void {
@@ -66,21 +127,7 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
    * far cheaper than the failure it avoids.
    */
   function onOffline(): void {
-    if (closed) return;
-    clearTimer();
-    // Detach before close so the async close event does not race a reconnect,
-    // and paint "closed" immediately (close events are not synchronous).
-    const socket = ws;
-    ws = null;
-    if (socket !== null) {
-      try {
-        socket.close();
-      } catch {
-        // Already closing.
-      }
-    }
-    handlers.onStatus("closed");
-    scheduleReconnect();
+    dropAndReconnect();
   }
 
   function onOnline(): void {
@@ -99,17 +146,24 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
       if (closed || ws !== socket) return;
       attempt = 0;
       handlers.onStatus("open");
+      startHeartbeat();
     });
 
     socket.addEventListener("message", (event) => {
       if (closed || ws !== socket) return;
+      // Any inbound traffic proves the socket is alive, not just a pong.
+      lastSeenAt = Date.now();
       const data = (event as MessageEvent).data;
       if (typeof data === "string") {
+        let control: ControlMessage;
         try {
-          handlers.onControl(JSON.parse(data) as ControlMessage);
+          control = JSON.parse(data) as ControlMessage;
         } catch {
-          // Ignore unparseable control frames.
+          return; // Ignore unparseable control frames.
         }
+        // The heartbeat reply is consumed here; callers never see it.
+        if (control.t === "pong") return;
+        handlers.onControl(control);
         return;
       }
       handlers.onFrame(new Uint8Array(data as ArrayBuffer));
@@ -118,6 +172,7 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
     const drop = (): void => {
       if (ws !== socket) return;
       ws = null;
+      stopHeartbeat();
       if (closed) return;
       handlers.onStatus("closed");
       scheduleReconnect();
@@ -150,6 +205,7 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
     close() {
       closed = true;
       clearTimer();
+      stopHeartbeat();
       if (typeof document !== "undefined") {
         document.removeEventListener("visibilitychange", onVisibilityChange);
       }
