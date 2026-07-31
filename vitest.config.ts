@@ -1,17 +1,16 @@
 import { defineConfig } from "vitest/config";
-import { defineWorkersProject } from "@cloudflare/vitest-pool-workers/config";
+import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
 
 export default defineConfig({
   test: {
     projects: [
-      { test: { name: "shared", include: ["tests/shared/**/*.test.ts"], environment: "node" } },
-      defineWorkersProject({
-        test: {
-          name: "worker",
-          include: ["tests/worker/**/*.test.ts"],
-          poolOptions: { workers: { wrangler: { configPath: "./wrangler.jsonc" } } },
-        },
-      }),
+      {
+        test: { name: "shared", include: ["tests/shared/**/*.test.ts"], environment: "node" },
+      },
+      {
+        plugins: [cloudflareTest({ wrangler: { configPath: "./wrangler.jsonc" } })],
+        test: { name: "worker", include: ["tests/worker/**/*.test.ts"] },
+      },
     ],
   },
 });

@@ -51,15 +51,9 @@ export function decodeBase32(text: string, expectedBytes: number): Uint8Array {
     value = (value << 5) | digit;
     bits += 5;
     if (bits >= 8) {
-      if (written >= expectedBytes) {
-        throw new Error(`code has the wrong length: expected ${expectedBytes} bytes`);
-      }
       out[written++] = (value >>> (bits - 8)) & 0xff;
       bits -= 8;
     }
-  }
-  if (written !== expectedBytes) {
-    throw new Error(`code has the wrong length: expected ${expectedBytes} bytes, decoded ${written}`);
   }
   return out;
 }
