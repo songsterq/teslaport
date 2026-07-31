@@ -27,6 +27,7 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
   let attempt = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let closed = false;
+  let online = typeof navigator === "undefined" || navigator.onLine;
 
   function clearTimer(): void {
     if (timer !== null) {
@@ -53,8 +54,30 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
     }
   }
 
+  function onOffline(): void {
+    if (closed) return;
+    online = false;
+    clearTimer();
+    const socket = ws;
+    ws = null;
+    socket?.close();
+    handlers.onStatus("closed");
+  }
+
+  function onOnline(): void {
+    if (closed || ws !== null) return;
+    online = true;
+    clearTimer();
+    attempt = 0;
+    open();
+  }
+
   function open(): void {
     if (closed) return;
+    if (!online) {
+      handlers.onStatus("closed");
+      return;
+    }
     handlers.onStatus("connecting");
     const socket = new WebSocket(url);
     socket.binaryType = "arraybuffer";
@@ -86,7 +109,7 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
       ws = null;
       if (closed) return;
       handlers.onStatus("closed");
-      scheduleReconnect();
+      if (online) scheduleReconnect();
     };
     socket.addEventListener("close", drop);
     socket.addEventListener("error", drop);
@@ -95,6 +118,10 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
   // Reconnect immediately when the screen wakes rather than waiting out a backoff.
   if (typeof document !== "undefined") {
     document.addEventListener("visibilitychange", onVisibilityChange);
+  }
+  if (typeof window !== "undefined") {
+    window.addEventListener("offline", onOffline);
+    window.addEventListener("online", onOnline);
   }
 
   open();
@@ -114,6 +141,10 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
       clearTimer();
       if (typeof document !== "undefined") {
         document.removeEventListener("visibilitychange", onVisibilityChange);
+      }
+      if (typeof window !== "undefined") {
+        window.removeEventListener("offline", onOffline);
+        window.removeEventListener("online", onOnline);
       }
       if (ws !== null) ws.close();
       ws = null;
