@@ -43,8 +43,8 @@ function expectNoMessage(ws: WebSocket, ms = 200): Promise<void> {
   });
 }
 
-async function control(ws: WebSocket): Promise<Record<string, unknown>> {
-  const data = await nextMessage(ws);
+async function control(ws: WebSocket, timeoutMs = 1000): Promise<Record<string, unknown>> {
+  const data = await nextMessage(ws, timeoutMs);
   expect(typeof data).toBe("string");
   return JSON.parse(data as string);
 }
@@ -166,6 +166,28 @@ describe("Room durable object", () => {
     const error = control(sender);
     for (let i = 0; i < 30; i++) sender.send(new Uint8Array([1]));
     sender.send(new Uint8Array([1]));
+    expect(await error).toEqual({ t: "error", code: "rate_limited" });
+  });
+
+  it("reports presence zero after the receiver disconnects", async () => {
+    // The workers test harness does not reliably invoke webSocketClose when the
+    // client end closes, so assert the observable contract: a sender that
+    // connects after the receiver is gone must see receivers: 0.
+    const room = "LLLLLLLLLLLLLLLLLLLLLL";
+    const receiver = await connect("receiver", room);
+    receiver.close(1000, "bye");
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    const sender = await connect("sender", room);
+    expect(await control(sender)).toEqual({ t: "presence", receivers: 0 });
+  });
+
+  it("rate limits receiver frames symmetrically", async () => {
+    const room = "MMMMMMMMMMMMMMMMMMMMMM";
+    // No sender needed: rate limit is per-socket before fan-out.
+    const receiver = await connect("receiver", room);
+    const error = control(receiver);
+    for (let i = 0; i < 30; i++) receiver.send(new Uint8Array([1]));
+    receiver.send(new Uint8Array([1]));
     expect(await error).toEqual({ t: "error", code: "rate_limited" });
   });
 });

@@ -73,10 +73,16 @@ export class Room implements DurableObject {
   }
 
   webSocketClose(ws: WebSocket): void {
+    // Capture role before the runtime drops tags for this socket.
+    const wasReceiver = this.ctx.getTags(ws).indexOf("receiver") !== -1;
     this.budgets.delete(ws);
-    if (this.roleOf(ws) === "receiver") {
-      // The socket is still briefly enumerable, so defer the count.
-      queueMicrotask(() => this.broadcastPresence());
+    if (!wasReceiver) return;
+    // During close the socket may still appear in getWebSockets(); subtract it.
+    const listed = this.ctx.getWebSockets("receiver");
+    const receivers = listed.includes(ws) ? listed.length - 1 : listed.length;
+    const message: ControlMessage = { t: "presence", receivers };
+    for (const sender of this.ctx.getWebSockets("sender")) {
+      this.send(sender, message);
     }
   }
 

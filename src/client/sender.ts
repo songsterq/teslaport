@@ -75,7 +75,18 @@ function bootstrap(): void {
     paint();
     message("Sending…", "");
 
-    const frame = await seal(pairing, { t: "url", id, url, ts: Date.now() });
+    let frame: Bytes;
+    try {
+      frame = await seal(pairing, { t: "url", id, url, ts: Date.now() });
+    } catch (error) {
+      clearPending();
+      const text = error instanceof Error ? error.message : String(error);
+      message(
+        /too large/i.test(text) ? "That link is too long." : "Could not prepare that link.",
+        "bad",
+      );
+      return;
+    }
     if (pending === null || pending.id !== id) return;
 
     if (socket === null || !socket.send(frame)) {
