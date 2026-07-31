@@ -2549,26 +2549,27 @@ function bootstrap(): void {
   }
 
   /**
-   * Single place that paints connection state. Presence and connection status
-   * arrive independently, so neither may write the status text directly — a
-   * late presence frame would otherwise paint "Car connected" over a socket
-   * that has already dropped.
+   * Green means the full path is ready (phone socket up and a car present).
+   * Presence and connection arrive independently; paint() is the only writer.
    */
   function paint(): void {
     const dot = el("dot");
     const status = el("status");
-    if (connection === "open") {
+    const ready = connection === "open" && receivers > 0;
+    if (ready) {
       dot.dataset.state = "open";
-      status.textContent = receivers > 0 ? "Car connected" : "Car not connected";
+      status.textContent = "Car connected";
     } else if (connection === "connecting") {
       dot.dataset.state = "connecting";
       status.textContent = "Connecting…";
+    } else if (connection === "open") {
+      dot.dataset.state = "connecting";
+      status.textContent = "Car not connected";
     } else {
       dot.dataset.state = "closed";
       status.textContent = "Reconnecting…";
     }
-    (el("send") as HTMLButtonElement).disabled =
-      !(connection === "open" && receivers > 0 && pending === null);
+    (el("send") as HTMLButtonElement).disabled = !(ready && pending === null);
   }
 
   function clearPending(): void {

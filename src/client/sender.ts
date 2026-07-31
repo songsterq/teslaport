@@ -38,21 +38,29 @@ function bootstrap(): void {
     node.dataset.tone = tone;
   }
 
+  /**
+   * Green means the full path is ready (phone socket up and a car present).
+   * Any other state is non-green, with the reason in the status text.
+   */
   function paint(): void {
     const dot = el("dot");
     const status = el("status");
-    if (connection === "open") {
+    const ready = connection === "open" && receivers > 0;
+    if (ready) {
       dot.dataset.state = "open";
-      status.textContent = receivers > 0 ? "Car connected" : "Car not connected";
+      status.textContent = "Car connected";
     } else if (connection === "connecting") {
       dot.dataset.state = "connecting";
       status.textContent = "Connecting…";
+    } else if (connection === "open") {
+      // Phone ↔ server is up; the car tab is missing.
+      dot.dataset.state = "connecting";
+      status.textContent = "Car not connected";
     } else {
       dot.dataset.state = "closed";
       status.textContent = "Reconnecting…";
     }
-    (el("send") as HTMLButtonElement).disabled =
-      !(connection === "open" && receivers > 0 && pending === null);
+    (el("send") as HTMLButtonElement).disabled = !(ready && pending === null);
   }
 
   function clearPending(): void {

@@ -27,6 +27,7 @@ test("pairs, sends a link, renders it, and acks", async ({ browser }) => {
   await phone.goto(`/s#${car.code}`);
 
   await expect(phone.locator("#status")).toHaveText("Car connected");
+  await expect(phone.locator("#dot")).toHaveAttribute("data-state", "open");
   await phone.locator("#url").fill("https://example.com/hello");
   await phone.locator("#send").click();
 
@@ -54,6 +55,8 @@ test("disables send when the car is absent", async ({ browser }) => {
   const phone = await (await browser.newContext()).newPage();
   await phone.goto(`/s#${code}`);
   await expect(phone.locator("#status")).toHaveText("Car not connected");
+  // Amber, not green: phone socket may be up, but the path is not ready.
+  await expect(phone.locator("#dot")).toHaveAttribute("data-state", "connecting");
   await expect(phone.locator("#send")).toBeDisabled();
 });
 

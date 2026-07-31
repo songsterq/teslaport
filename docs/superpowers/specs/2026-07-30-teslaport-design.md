@@ -1,7 +1,7 @@
 # TeslaPort — Design
 
 **Date:** 2026-07-30
-**Status:** Approved, ready for implementation planning
+**Status:** Approved (status-dot semantics revised 2026-07-30: green = full path ready)
 
 ## Purpose
 
@@ -214,15 +214,30 @@ Fan-out is the only rule under which knowledge of a `roomId` — which is not se
 
 The consequence is that **presence becomes advisory and the ack becomes truth.** "Two screens connected" is a fuzzy signal that includes any squatter; "a key-holder accepted message `id`" is not.
 
-### Presence drives the sender UX
+### Status dot and presence UX
 
-When a receiver socket opens or closes, the DO pushes a presence event to every connected sender. The phone always shows one of three states:
+Both pages show a status dot beside a short reason string. **Green means the full path is ready** — the device can participate in a send/receive right now. Any other colour is a problem state, and the label states why.
 
-- **Car connected** — Send enabled
-- **Car not connected** — Send disabled, with "Open TeslaPort on the car screen"
-- **Reconnecting…** — the phone's own socket is down
+**Phone (sender):**
 
-Presence exists to disable Send *before* the user pastes rather than failing afterward. It is server-attested and therefore advisory; see the threat-model notes above.
+| Dot | Label | Meaning |
+|---|---|---|
+| Green | Car connected | Phone socket open **and** at least one receiver present — Send enabled |
+| Amber | Car not connected | Phone socket open, but no car in the room — Send disabled |
+| Amber | Connecting… | Phone is establishing its own socket |
+| Red | Reconnecting… | Phone socket is down; backoff / wake reconnect in progress |
+
+When a receiver socket opens or closes, the DO pushes a presence event to every connected sender. Presence exists to disable Send *before* the user pastes rather than failing afterward. It is server-attested and therefore advisory; see the threat-model notes above. A green "Car connected" can include a squatter; only the encrypted ack proves a key-holder accepted the link.
+
+**Car (receiver):**
+
+| Dot | Label | Meaning |
+|---|---|---|
+| Green | Ready to receive | Car socket open — can accept encrypted frames |
+| Amber | Connecting… | Establishing the socket |
+| Red | Disconnected — retrying | Socket down; reconnecting |
+
+A live status dot sits next to the QR; the car never shows a dead connection without saying so.
 
 ### Acknowledged sends
 
@@ -232,7 +247,7 @@ The phone clears the text box only on a valid `ack` for that message's `id`. Any
 
 ### Reconnection
 
-Drops are normal: parked cars sleep, phones change networks, Cloudflare recycles connections. Both clients auto-reconnect with jittered exponential backoff (1s → 30s) and reconnect immediately on `visibilitychange` to visible, so the car resumes the moment the screen wakes rather than after a pending backoff timer. A live status dot sits next to the QR; the car never shows a dead connection without saying so.
+Drops are normal: parked cars sleep, phones change networks, Cloudflare recycles connections. Both clients auto-reconnect with jittered exponential backoff (1s → 30s) and reconnect immediately on `visibilitychange` to visible (and on the browser `online` event), so the car resumes the moment the screen or network wakes rather than after a pending backoff timer. Status-dot colours follow the table above.
 
 ### Failure modes
 
