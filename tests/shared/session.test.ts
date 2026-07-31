@@ -1,6 +1,14 @@
 import { describe, it, expect } from "vitest";
 import type { KeyValueStore } from "../../src/shared/replay";
-import { resolveSeed, storeSeed, clearSeed, SEED_STORAGE_KEY } from "../../src/client/session";
+import {
+  resolveSeed,
+  storeSeed,
+  clearSeed,
+  SEED_STORAGE_KEY,
+  storeRole,
+  loadRole,
+  ROLE_STORAGE_KEY,
+} from "../../src/client/session";
 import { generateSeed } from "../../src/shared/pairing";
 import { encodeBase32 } from "../../src/shared/base32";
 
@@ -70,5 +78,36 @@ describe("seed resolution", () => {
     storeSeed(storage, generateSeed());
     clearSeed(storage);
     expect(storage.getItem(SEED_STORAGE_KEY)).toBeNull();
+  });
+});
+
+describe("role storage", () => {
+  it("stores and loads receiver and sender", () => {
+    const storage = memoryStore();
+    storeRole(storage, "receiver");
+    expect(storage.getItem(ROLE_STORAGE_KEY)).toBe("receiver");
+    expect(loadRole(storage)).toBe("receiver");
+    storeRole(storage, "sender");
+    expect(loadRole(storage)).toBe("sender");
+  });
+
+  it("returns null when missing", () => {
+    expect(loadRole(memoryStore())).toBeNull();
+  });
+
+  it("returns null for corrupt values", () => {
+    const storage = memoryStore();
+    storage.setItem(ROLE_STORAGE_KEY, "car");
+    expect(loadRole(storage)).toBeNull();
+    storage.setItem(ROLE_STORAGE_KEY, "");
+    expect(loadRole(storage)).toBeNull();
+  });
+
+  it("does not clear role when clearing the seed", () => {
+    const storage = memoryStore();
+    storeRole(storage, "receiver");
+    storeSeed(storage, generateSeed());
+    clearSeed(storage);
+    expect(loadRole(storage)).toBe("receiver");
   });
 });

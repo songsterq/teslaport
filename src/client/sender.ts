@@ -4,7 +4,7 @@ import type { Bytes } from "../shared/bytes";
 import { seal, openEnvelope, newMessageId } from "../shared/envelope";
 import { connect, type SocketHandle, type ConnectionStatus } from "../shared/socket";
 import { installErrorCapture } from "../shared/diagnostics";
-import { resolveSeed, storeSeed } from "./session";
+import { resolveSeed, storeSeed, storeRole } from "./session";
 import { ACK_TIMEOUT_MS } from "../shared/protocol";
 
 export function normaliseInputUrl(raw: string): string | null {
@@ -23,7 +23,11 @@ export function normaliseInputUrl(raw: string): string | null {
 
 function bootstrap(): void {
   const storage = window.localStorage;
+  // Error capture first: a storeRole failure (quota, restricted storage) is
+  // then recorded for /debug instead of killing bootstrap silently. The car
+  // has no developer tools, so an uncaptured startup throw is invisible.
   installErrorCapture(storage);
+  storeRole(storage, "sender");
   const el = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
   let pairing: Pairing;
