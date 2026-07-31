@@ -23,8 +23,11 @@ export function normaliseInputUrl(raw: string): string | null {
 
 function bootstrap(): void {
   const storage = window.localStorage;
-  storeRole(storage, "sender");
+  // Error capture first: a storeRole failure (quota, restricted storage) is
+  // then recorded for /debug instead of killing bootstrap silently. The car
+  // has no developer tools, so an uncaptured startup throw is invisible.
   installErrorCapture(storage);
+  storeRole(storage, "sender");
   const el = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
   let pairing: Pairing;
