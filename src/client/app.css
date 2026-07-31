@@ -123,7 +123,7 @@ h3 {
   white-space: nowrap;
 }
 
-.site-footer { border-top: 1px solid var(--line); padding-block: 32px; margin-top: 56px; }
+.site-footer { border-top: 1px solid var(--line); padding-block: 8px; margin-top: 56px; }
 
 /*
  * Pages whose content is shorter than the viewport would otherwise leave the
