@@ -119,7 +119,7 @@ The sender therefore distinguishes three outcomes:
 | Outcome | Sender shows |
 |---|---|
 | `no-receiver` from the DO | "Car not connected" |
-| Relayed, but no valid ack within 3s | "The car received it but didn't accept it — open /debug on the car screen." |
+| Relayed, but no valid ack within 3s | "No confirmation from the car. The link may not have arrived — open /debug on the car screen." |
 | Valid `ack` for the message `id` | ✓ Sent |
 
 Only the third clears the text box. Acks are deduplicated by `id`; the first valid one wins, so multiple legitimate car tabs do not confuse the sender.
@@ -139,7 +139,7 @@ This makes clock skew a real failure mode, so `/debug` displays the observed del
 
 - The receiver validates that the **decrypted** URL has scheme `http:` or `https:` before rendering. Without this, an attacker holding the key could deliver a `javascript:` URL to the car screen. A rejected frame is never acked.
 - Payloads are capped at 8 KB and rate-limited to 30 messages per minute **per socket, in both roles**, so the relay cannot be repurposed as anonymous storage or a general-purpose tunnel, and a rogue receiver cannot flood senders with ack frames.
-- Rendered links carry `rel="noopener noreferrer"` and are never auto-opened.
+- Rendered links carry `rel="noopener noreferrer"` and are never auto-opened. They open in the **same tab** — Tesla's browser handles `target="_blank"` unreliably, and a link that silently does nothing when tapped is the worst possible failure on a screen with no developer tools. Revisit only if in-car testing proves `_blank` works.
 
 ### Recovering from a wiped car
 
@@ -242,7 +242,7 @@ Drops are normal: parked cars sleep, phones change networks, Cloudflare recycles
 | Decrypted payload is not `http:` or `https:` | Dropped, not acked, counter incremented |
 | `ts` outside the ±5 minute window | Dropped, not acked, counter incremented. `/debug` shows the observed clock delta. |
 | `id` already in the recent-ID set | Dropped as a replay, not acked, counter incremented |
-| Relayed but no ack within 3s | Sender: "The car received it but didn't accept it — open /debug on the car screen." Text retained. |
+| Relayed but no ack within 3s | Sender: "No confirmation from the car. The link may not have arrived — open /debug on the car screen." Text retained. |
 | Payload > 8 KB, or rate limit exceeded | DO rejects; sender shows an explicit error |
 | Car localStorage wiped | `/r` finds no seed, shows first-run pairing screen; bookmark restores |
 | `/s` opened with no fragment and no stored seed | "Scan the code on your car screen" — no half-paired state |

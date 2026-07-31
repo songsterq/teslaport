@@ -62,11 +62,13 @@ Ack timeout      = 3 seconds
 | `src/shared/pairing.ts` | Seed generation, HKDF derivation, roomId/key, URL builders. |
 | `src/shared/envelope.ts` | AES-GCM seal/open, payload shape + scheme + freshness validation. Pure over bytes. |
 | `src/shared/replay.ts` | Recent-message-id set backed by a storage interface. |
+| `src/shared/diagnostics.ts` | Persisted drop counters, clock delta, and rolling error log. |
 | `src/shared/socket.ts` | Reconnecting WebSocket client + backoff computation. |
 | `src/shared/protocol.ts` | Shared constants and control-message types. |
 | `src/worker/room.ts` | Durable Object switchboard: fan-out, presence, caps. |
 | `src/worker/index.ts` | Routing, WS upgrade, static assets, security headers. |
 | `src/client/history.ts` | Car's received-link history store. |
+| `src/client/session.ts` | Seed resolution from fragment or storage; shared by all three pages. |
 | `src/client/qr.ts` | QR rendering wrapper. |
 | `src/client/receiver.ts` | Car page controller. |
 | `src/client/sender.ts` | Phone page controller. |
@@ -140,6 +142,8 @@ npm install --save qrcode-generator
 
 Note: `package.json` sets `"type": "module"`, so `__dirname` does not exist in this file. Resolve from `import.meta.url` instead.
 
+**Do not run `npm run build` before Task 7.** The HTML entry points these inputs reference are created there; the build will fail until then. Tasks 1–6 are exercised entirely through `npx vitest`.
+
 ```ts
 import { defineConfig } from "vite";
 import { fileURLToPath } from "node:url";
@@ -163,14 +167,19 @@ export default defineConfig({
 });
 ```
 
-`wrangler.jsonc`:
+`wrangler.jsonc` — `html_handling` is pinned deliberately. Vite emits `r/index.html`, and the app's URLs are `/r` with no trailing slash; the default behaviour is a common source of 404s. `auto-trailing-slash` serves `/r` from `r/index.html` without a redirect.
 
 ```jsonc
 {
   "name": "teslaport",
   "main": "src/worker/index.ts",
   "compatibility_date": "2026-07-01",
-  "assets": { "directory": "./dist/client", "binding": "ASSETS" },
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
   "durable_objects": {
     "bindings": [{ "name": "ROOM", "class_name": "Room" }]
   },
@@ -890,6 +899,7 @@ The diagnostics counters must be **persisted, not held in a page global**. `/deb
   - `interface SeenStore { has(id: string): boolean; add(id: string): void; clear(): void }` (exported as a named type)
   - `createSeenStore(storage: KeyValueStore, key?: string, limit?: number): SeenStore`
   - `loadDropCounts(storage: KeyValueStore): DropCounts`, `bumpDropCount(storage: KeyValueStore, reason: keyof DropCounts): DropCounts`, `recordClockDelta(storage: KeyValueStore, deltaMs: number): void`, `readClockDelta(storage: KeyValueStore): number | null`, where `type DropCounts = Record<"decrypt" | "malformed" | "scheme" | "stale" | "replay", number>`
+  - `appendError(storage: KeyValueStore, message: string): void`, `loadErrors(storage: KeyValueStore): string[]`, `installErrorCapture(storage: KeyValueStore): void` — the log must persist, because an error thrown on `/r` has to be readable later on `/debug`, which is a different document
   - `interface HistoryEntry { id: string; url: string; ts: number }`
   - `loadHistory(storage: KeyValueStore): HistoryEntry[]`
   - `pushHistory(storage: KeyValueStore, entry: HistoryEntry): HistoryEntry[]`
@@ -958,7 +968,9 @@ describe("seen-id store", () => {
 ```ts
 import { describe, it, expect } from "vitest";
 import type { KeyValueStore } from "../../src/shared/replay";
-import { loadDropCounts, bumpDropCount, recordClockDelta, readClockDelta } from "../../src/shared/diagnostics";
+import {
+  loadDropCounts, bumpDropCount, recordClockDelta, readClockDelta, appendError, loadErrors,
+} from "../../src/shared/diagnostics";
 
 function memoryStore(): KeyValueStore {
   const map = new Map<string, string>();
@@ -1002,7 +1014,43 @@ describe("diagnostics counters", () => {
     expect(readClockDelta(storage)).toBeNull();
   });
 });
+
+describe("persisted error log", () => {
+  it("starts empty and appends newest last", () => {
+    const storage = memoryStore();
+    expect(loadErrors(storage)).toEqual([]);
+    appendError(storage, "first");
+    appendError(storage, "second");
+    const errors = loadErrors(storage);
+    expect(errors).toHaveLength(2);
+    expect(errors[0]).toContain("first");
+    expect(errors[1]).toContain("second");
+  });
+
+  it("timestamps each entry", () => {
+    const storage = memoryStore();
+    appendError(storage, "boom");
+    expect(loadErrors(storage)[0]).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it("keeps only the most recent 20", () => {
+    const storage = memoryStore();
+    for (let i = 0; i < 25; i++) appendError(storage, `e${i}`);
+    const errors = loadErrors(storage);
+    expect(errors).toHaveLength(20);
+    expect(errors[19]).toContain("e24");
+    expect(errors.join()).not.toContain("e4,");
+  });
+
+  it("survives corrupt stored data", () => {
+    const storage = memoryStore();
+    storage.setItem("teslaport:errors", "]]]");
+    expect(loadErrors(storage)).toEqual([]);
+  });
+});
 ```
+
+Add `appendError, loadErrors` to the import at the top of this file.
 
 `tests/shared/history.test.ts`:
 
@@ -1167,6 +1215,39 @@ export function readClockDelta(storage: KeyValueStore): number | null {
   if (raw === null) return null;
   const value = Number(raw);
   return Number.isFinite(value) ? value : null;
+}
+
+const ERRORS_KEY = "teslaport:errors";
+const ERROR_LIMIT = 20;
+
+export function loadErrors(storage: KeyValueStore): string[] {
+  const raw = storage.getItem(ERRORS_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export function appendError(storage: KeyValueStore, message: string): void {
+  const entries = loadErrors(storage);
+  entries.push(`${new Date().toISOString()} ${message}`);
+  storage.setItem(ERRORS_KEY, JSON.stringify(entries.slice(-ERROR_LIMIT)));
+}
+
+/**
+ * Captures uncaught errors to storage. The car has no developer tools, so an
+ * error thrown on /r must survive until someone opens /debug in another tab.
+ */
+export function installErrorCapture(storage: KeyValueStore): void {
+  window.addEventListener("error", (event) => {
+    appendError(storage, `${event.message} @ ${event.filename}:${event.lineno}`);
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    appendError(storage, `unhandled rejection: ${String((event as PromiseRejectionEvent).reason)}`);
+  });
 }
 ```
 
@@ -1605,7 +1686,9 @@ git commit -m "feat: durable object switchboard with cross-role fan-out"
   - `type ConnectionStatus = "connecting" | "open" | "closed"`
   - `connect(url: string, handlers: SocketHandlers): SocketHandle` where
     `interface SocketHandlers { onStatus(s: ConnectionStatus): void; onFrame(frame: Uint8Array): void; onControl(msg: ControlMessage): void }`
-    and `interface SocketHandle { send(frame: Uint8Array): void; close(): void }`
+    and `interface SocketHandle { send(frame: Uint8Array): boolean; close(): void }`
+
+`send` returns whether the frame actually went out. A silent no-op on a closed socket would leave the sender waiting out a 3-second ack timeout and then blaming the car for a message that never left the phone.
 
 Only `nextDelay` is unit-tested; live reconnection is proven in the Playwright suite (Task 10) using `context.setOffline`, which exercises the real browser behaviour rather than a mock of it.
 
@@ -1666,7 +1749,8 @@ export interface SocketHandlers {
 }
 
 export interface SocketHandle {
-  send(frame: Uint8Array): void;
+  /** Returns false if the socket was not open and the frame was dropped. */
+  send(frame: Uint8Array): boolean;
   close(): void;
 }
 
@@ -1750,7 +1834,13 @@ export function connect(url: string, handlers: SocketHandlers): SocketHandle {
 
   return {
     send(frame) {
-      if (ws !== null && ws.readyState === WebSocket.OPEN) ws.send(frame);
+      if (ws === null || ws.readyState !== WebSocket.OPEN) return false;
+      try {
+        ws.send(frame);
+        return true;
+      } catch {
+        return false;
+      }
     },
     close() {
       closed = true;
@@ -1938,6 +2028,8 @@ Run: `npx vitest run --project shared`
 Expected: PASS.
 
 - [ ] **Step 5: Write `src/client/qr.ts`**
+
+`qrcode-generator` ships a CommonJS default export, and its ESM interop under Vite is a known rough edge. If `qrcode(0, "M")` throws "qrcode is not a function", the default import resolved to the module namespace — use `const make = (qrcode as unknown as { default?: typeof qrcode }).default ?? qrcode;` and call `make(0, "M")`. Budget a few minutes for this; do not swap libraries over it.
 
 ```ts
 import qrcode from "qrcode-generator";
@@ -2129,7 +2221,7 @@ import { derivePairing, formatSeedCode, buildSenderUrl, buildReceiverUrl, type P
 import { encodeBase32 } from "../shared/base32";
 import { openEnvelope, seal } from "../shared/envelope";
 import { createSeenStore, type SeenStore } from "../shared/replay";
-import { bumpDropCount, recordClockDelta } from "../shared/diagnostics";
+import { bumpDropCount, recordClockDelta, installErrorCapture } from "../shared/diagnostics";
 import { loadHistory, pushHistory, clearHistory, type HistoryEntry } from "./history";
 import { connect, type SocketHandle } from "../shared/socket";
 import { resolveSeed, storeSeed, clearSeed } from "./session";
@@ -2149,7 +2241,9 @@ function renderLinks(entries: HistoryEntry[]): void {
     const item = document.createElement("li");
     const anchor = document.createElement("a");
     anchor.href = entry.url;
-    anchor.target = "_blank";
+    // Same tab, deliberately: Tesla's browser handles target="_blank"
+    // unreliably, and a link that does nothing when tapped is the worst
+    // failure mode on a screen with no developer tools.
     anchor.rel = "noopener noreferrer";
     anchor.textContent = entry.url;
     item.appendChild(anchor);
@@ -2234,18 +2328,27 @@ el("clear").addEventListener("click", () => {
   renderLinks([]);
 });
 
+installErrorCapture(storage);
 const resolved = resolveSeed(location.hash, storage, "generate")!;
 storeSeed(storage, resolved.seed);
 void start(resolved.seed);
 ```
 
-- [ ] **Step 9: Build and eyeball the page**
+- [ ] **Step 9: Build and verify the extensionless routes resolve**
+
+This is the first build in the project, and the first chance to catch an asset-routing 404. Do it now rather than at deploy.
 
 ```bash
 npm run build && npx wrangler dev
 ```
 
-Open `http://localhost:8787/r`. Expected: a QR code renders, a 4×6 dashed code appears below it, the status dot turns green, and the address bar shows `/r#<24 chars>`. Check the browser console is clean — in particular, no CSP violations.
+```bash
+for path in / /r /s /debug; do printf '%s -> ' "$path"; curl -s -o /dev/null -w '%{http_code}\n' "http://localhost:8787$path"; done
+```
+
+Expected: `200` for all four, with **no trailing slash added**. A 404 or a 301 to `/r/` means `html_handling` in `wrangler.jsonc` is wrong — fix the config, not the links.
+
+Then open `http://localhost:8787/r`. Expected: a QR code renders, a 4×6 dashed code appears below it, the status dot turns green, the bookmark prompt is visible, and the address bar shows `/r#<24 chars>`. Check the browser console is clean — in particular, no CSP violations.
 
 - [ ] **Step 10: Commit**
 
@@ -2347,7 +2450,8 @@ Note: `sender.ts` runs DOM setup at module scope, which would break this Node-po
 import { derivePairing, parseSeedCode, type Pairing } from "../shared/pairing";
 import { encodeBase32 } from "../shared/base32";
 import { seal, openEnvelope, newMessageId } from "../shared/envelope";
-import { connect, type SocketHandle } from "../shared/socket";
+import { connect, type SocketHandle, type ConnectionStatus } from "../shared/socket";
+import { installErrorCapture } from "../shared/diagnostics";
 import { resolveSeed, storeSeed } from "./session";
 import { ACK_TIMEOUT_MS } from "../shared/protocol";
 
@@ -2367,11 +2471,13 @@ export function normaliseInputUrl(raw: string): string | null {
 
 function bootstrap(): void {
   const storage = window.localStorage;
+  installErrorCapture(storage);
   const el = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
   let pairing: Pairing;
   let socket: SocketHandle | null = null;
   let receivers = 0;
+  let connection: ConnectionStatus = "connecting";
   let pending: { id: string; timer: number } | null = null;
 
   function message(text: string, tone: "ok" | "warn" | "bad" | ""): void {
@@ -2380,44 +2486,67 @@ function bootstrap(): void {
     node.dataset.tone = tone;
   }
 
-  function refreshSendButton(status: string): void {
-    const ready = status === "open" && receivers > 0 && pending === null;
-    (el("send") as HTMLButtonElement).disabled = !ready;
-  }
-
-  let lastStatus = "connecting";
-
-  function setStatus(state: string, label: string): void {
-    lastStatus = state;
-    el("dot").dataset.state = state;
-    el("status").textContent = label;
-    refreshSendButton(state);
+  /**
+   * Single place that paints connection state. Presence and connection status
+   * arrive independently, so neither may write the status text directly — a
+   * late presence frame would otherwise paint "Car connected" over a socket
+   * that has already dropped.
+   */
+  function paint(): void {
+    const dot = el("dot");
+    const status = el("status");
+    if (connection === "open") {
+      dot.dataset.state = "open";
+      status.textContent = receivers > 0 ? "Car connected" : "Car not connected";
+    } else if (connection === "connecting") {
+      dot.dataset.state = "connecting";
+      status.textContent = "Connecting…";
+    } else {
+      dot.dataset.state = "closed";
+      status.textContent = "Reconnecting…";
+    }
+    (el("send") as HTMLButtonElement).disabled =
+      !(connection === "open" && receivers > 0 && pending === null);
   }
 
   function clearPending(): void {
     if (pending) window.clearTimeout(pending.timer);
     pending = null;
-    refreshSendButton(lastStatus);
+    paint();
   }
 
   async function send(): Promise<void> {
+    if (pending !== null) return;
     const input = el<HTMLInputElement>("url");
     const url = normaliseInputUrl(input.value);
     if (!url) {
       message("That doesn't look like a web link.", "bad");
       return;
     }
+
+    // Claim the pending slot BEFORE awaiting seal(), so a double-tap during
+    // encryption cannot ship the same link twice.
     const id = newMessageId();
-    socket?.send(await seal(pairing, { t: "url", id, url, ts: Date.now() }));
+    pending = { id, timer: 0 };
+    paint();
     message("Sending…", "");
-    pending = {
-      id,
-      timer: window.setTimeout(() => {
-        clearPending();
-        message("The car received it but didn't accept it — open /debug on the car screen.", "bad");
-      }, ACK_TIMEOUT_MS),
-    };
-    refreshSendButton(lastStatus);
+
+    const frame = await seal(pairing, { t: "url", id, url, ts: Date.now() });
+    if (pending === null || pending.id !== id) return; // superseded while sealing
+
+    if (socket === null || !socket.send(frame)) {
+      clearPending();
+      message("Not connected — the link was not sent. Try again in a moment.", "bad");
+      return;
+    }
+
+    pending.timer = window.setTimeout(() => {
+      clearPending();
+      message(
+        "No confirmation from the car. The link may not have arrived — open /debug on the car screen.",
+        "bad",
+      );
+    }, ACK_TIMEOUT_MS);
   }
 
   async function handleFrame(frame: Uint8Array): Promise<void> {
@@ -2437,15 +2566,17 @@ function bootstrap(): void {
     socket?.close();
     socket = connect(`${location.origin.replace(/^http/, "ws")}/ws/${pairing.roomId}?role=sender`, {
       onStatus(status) {
-        if (status === "open") setStatus("open", receivers > 0 ? "Car connected" : "Car not connected");
-        else if (status === "connecting") setStatus("connecting", "Connecting…");
-        else setStatus("closed", "Reconnecting…");
+        connection = status;
+        // Presence is only meaningful on a live socket; a stale count must not
+        // survive a drop.
+        if (status !== "open") receivers = 0;
+        paint();
       },
       onFrame(frame) { void handleFrame(frame); },
       onControl(control) {
         if (control.t === "presence") {
           receivers = control.receivers;
-          setStatus("open", receivers > 0 ? "Car connected" : "Car not connected");
+          paint();
         } else if (control.t === "no-receiver") {
           clearPending();
           message("Car not connected — open TeslaPort on the car screen.", "bad");
@@ -2543,14 +2674,15 @@ Without this, a failure in the car is undiagnosable — there are no developer t
 - [ ] **Step 2: Write `src/client/debug.ts`**
 
 ```ts
-import { derivePairing, generateSeed } from "../shared/pairing";
+import { derivePairing, generateSeed, base64url } from "../shared/pairing";
 import { seal, openEnvelope, newMessageId } from "../shared/envelope";
 import { loadHistory } from "./history";
-import { loadDropCounts, readClockDelta } from "../shared/diagnostics";
+import { loadDropCounts, readClockDelta, loadErrors, installErrorCapture } from "../shared/diagnostics";
 import { resolveSeed } from "./session";
 
+installErrorCapture(window.localStorage);
+
 const rows: Array<[string, string]> = [];
-const errors: string[] = [];
 
 function add(label: string, value: string): void {
   rows.push([label, value]);
@@ -2568,17 +2700,46 @@ function render(): void {
     list.appendChild(dt);
     list.appendChild(dd);
   }
+  // Errors are read from storage, so failures on /r are visible here.
+  const errors = loadErrors(window.localStorage);
   document.getElementById("log")!.textContent = errors.length ? errors.join("\n") : "none";
 }
 
-window.addEventListener("error", (event) => {
-  errors.push(`${event.message} @ ${event.filename}:${event.lineno}`);
-  render();
-});
-window.addEventListener("unhandledrejection", (event) => {
-  errors.push(`unhandled rejection: ${String((event as PromiseRejectionEvent).reason)}`);
-  render();
-});
+/**
+ * Opens a real socket to a throwaway room, sends a byte, and waits for the
+ * server's `no-receiver` control reply. That proves the upgrade, the frame
+ * path, and the return path — everything the app depends on.
+ */
+async function probeWebSocket(): Promise<string> {
+  if (typeof WebSocket !== "function") return "MISSING: no WebSocket constructor";
+  const probeRoom = base64url(crypto.getRandomValues(new Uint8Array(16)));
+  const url = `${location.origin.replace(/^http/, "ws")}/ws/${probeRoom}?role=sender`;
+  return new Promise<string>((resolve) => {
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(url);
+    } catch (error) {
+      resolve(`FAILED to construct: ${String(error)}`);
+      return;
+    }
+    const started = Date.now();
+    const finish = (result: string): void => {
+      try { ws.close(); } catch { /* already closing */ }
+      resolve(result);
+    };
+    const timer = setTimeout(() => finish("FAILED: no reply within 5s"), 5000);
+    ws.addEventListener("open", () => ws.send(new Uint8Array([0])));
+    ws.addEventListener("message", (event) => {
+      if (typeof (event as MessageEvent).data !== "string") return;
+      clearTimeout(timer);
+      finish(`ok (${Date.now() - started} ms)`);
+    });
+    ws.addEventListener("error", () => {
+      clearTimeout(timer);
+      finish("FAILED: connection error");
+    });
+  });
+}
 
 async function run(): Promise<void> {
   add("User agent", navigator.userAgent);
@@ -2595,8 +2756,11 @@ async function run(): Promise<void> {
     add("localStorage round-trip", `FAILED: ${String(error)}`);
   }
 
-  add("WebSocket constructor", typeof WebSocket === "function" ? "present" : "MISSING");
   add("crypto.subtle", typeof crypto !== "undefined" && !!crypto.subtle ? "present" : "MISSING");
+
+  // A live round trip, not a constructor check: proxies, TLS interception and
+  // captive portals all leave `WebSocket` defined while breaking the connection.
+  add("WebSocket round-trip", await probeWebSocket());
 
   try {
     const pairing = await derivePairing(generateSeed());
@@ -2727,6 +2891,8 @@ test("pairs, sends a link, renders it, and acks", async ({ browser }) => {
   await expect(phone.locator("#url")).toHaveValue("");
   await expect(car.page.locator("ul#links a")).toHaveText("https://example.com/hello");
   await expect(car.page.locator("ul#links a")).toHaveAttribute("rel", "noopener noreferrer");
+  // Same tab, deliberately — Tesla's browser mishandles target="_blank".
+  await expect(car.page.locator("ul#links a")).not.toHaveAttribute("target", /.*/);
 });
 
 test("disables send when the car is absent", async ({ browser }) => {
@@ -2841,14 +3007,20 @@ Nothing in the automated suite proves the real Tesla browser works. Run this
 once after the first deploy, and again after any change to `src/shared` or
 `src/client`.
 
-1. **Load `/debug` on the car screen.** Every round-trip row must read `ok`.
+1. **Load `/debug` on the car screen.** Every round-trip row — localStorage,
+   crypto, and WebSocket — must read `ok`.
    Record the user agent string here the first time: `________`.
    If `crypto.subtle` is MISSING, the page is not on HTTPS — stop and fix that.
+   If the WebSocket round-trip fails, nothing else will work; stop here.
 2. **Load `/r`.** A QR code renders and the status dot is green.
 3. **Scan the QR with a phone.** The phone opens `/s` already paired and shows
    "Car connected".
 4. **Send a link.** It appears on the car screen and the phone shows "Sent ✓".
-5. **Tap the link on the car screen.** It opens the page.
+5. **Tap the link on the car screen.** It opens the page **in the same tab**.
+   Use the browser's back control to return to `/r`; the pairing and history
+   must still be there. If you want links to open in a new tab instead, verify
+   `target="_blank"` actually works in this browser build first — the design
+   deliberately does not assume it.
 6. **Bookmark the `/r#…` URL**, then clear the car browser's data, then open
    the bookmark. The same code must reappear — not a new one.
 7. **Put the car to sleep for ten minutes, then wake it.** The status dot
@@ -2898,6 +3070,13 @@ npm run deploy
 
 Then point a domain at the Worker in the Cloudflare dashboard. Durable Objects
 run on the free plan, so hosting cost is the domain registration only.
+
+## Limits
+
+One pairing per browser profile. The seed occupies a single storage slot, so
+opening `/s` with a different code repairs that phone to the new car rather
+than remembering both. Pairing several phones to one car works fine — that
+direction is unlimited.
 
 After the first deploy, run `docs/in-car-checklist.md` in the car.
 ```
