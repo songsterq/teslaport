@@ -19,9 +19,22 @@ interface SocketState {
 
 export class Room implements DurableObject {
   /**
-   * In-memory only. Resets if the DO is evicted or hibernates; a reset means a
-   * socket is treated as freshly seen, which can only over-count a receiver
-   * briefly — never hide a live car from its phone.
+   * Per-socket rate-limit and liveness state, in memory only.
+   *
+   * Keyed by socket identity, so it does not survive hibernation: waking this
+   * object rebuilds the map and hands `webSocketMessage` fresh `WebSocket`
+   * wrappers, which resets every budget. The cap is therefore "30 per minute
+   * per socket per wake", not a global guarantee — a client that stays quiet
+   * long enough for the object to hibernate starts a fresh window.
+   *
+   * That is deliberate, not an oversight. Surviving hibernation means writing
+   * the counters somewhere the runtime restores, and both routes available
+   * (`storage` and `serializeAttachment`) are server-side persistence, which
+   * the spec forbids outright. A sustained flood keeps the object awake and
+   * stays limited, so the gap only helps a slow trickle — which the cap was
+   * never the defense against. The liveness reset is safe in the same way: an
+   * unknown socket reads as freshly seen, which can briefly over-count a
+   * receiver but never hides a live car from its phone.
    */
   private sockets = new Map<WebSocket, SocketState>();
 
@@ -93,6 +106,7 @@ export class Room implements DurableObject {
     // Capture role before the runtime drops tags for this socket.
     const wasReceiver = this.ctx.getTags(ws).indexOf("receiver") !== -1;
     this.sockets.delete(ws);
+    this.pruneClosedSockets();
     if (!wasReceiver) return;
     // During close the socket may still appear in getWebSockets(); subtract it.
     const listed = this.liveSockets("receiver");
@@ -112,6 +126,19 @@ export class Room implements DurableObject {
     if (tags.indexOf("sender") !== -1) return "sender";
     if (tags.indexOf("receiver") !== -1) return "receiver";
     return null;
+  }
+
+  /**
+   * Drops state for sockets the runtime no longer lists. `webSocketClose` is
+   * not guaranteed to fire for every socket, and without this the map would be
+   * the one thing in this object that grows without bound.
+   */
+  private pruneClosedSockets(): void {
+    if (this.sockets.size === 0) return;
+    const open = new Set<WebSocket>(this.ctx.getWebSockets());
+    for (const ws of [...this.sockets.keys()]) {
+      if (!open.has(ws)) this.sockets.delete(ws);
+    }
   }
 
   private stateOf(ws: WebSocket): SocketState {

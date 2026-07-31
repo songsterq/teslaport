@@ -211,6 +211,28 @@ describe("Room durable object", () => {
     expect(new Uint8Array((await relayed) as ArrayBuffer)).toEqual(new Uint8Array([7]));
   });
 
+  // The budget is per socket, not per room: one noisy phone must not lock out
+  // another that is paired to the same car.
+  it("gives each socket its own rate-limit budget", async () => {
+    const room = "QQQQQQQQQQQQQQQQQQQQQQ";
+    await connect("receiver", room);
+    // Drain each sender's initial presence before opening the next socket;
+    // a control message sent with no listener attached is lost.
+    const noisy = await connect("sender", room);
+    await control(noisy);
+    const quiet = await connect("sender", room);
+    await control(quiet);
+
+    const limited = control(noisy);
+    for (let i = 0; i < 31; i++) noisy.send(new Uint8Array([1]));
+    expect(await limited).toEqual({ t: "error", code: "rate_limited" });
+
+    // The second sender is untouched: its frame relays rather than erroring.
+    const quietReply = expectNoMessage(quiet);
+    quiet.send(new Uint8Array([2]));
+    await quietReply;
+  });
+
   it("rate limits receiver frames symmetrically", async () => {
     const room = "MMMMMMMMMMMMMMMMMMMMMM";
     // No sender needed: rate limit is per-socket before fan-out.
