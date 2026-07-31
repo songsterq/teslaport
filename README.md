@@ -35,6 +35,21 @@ npm run deploy
 Then point a domain at the Worker in the Cloudflare dashboard. Durable Objects
 run on the free plan, so hosting cost is the domain registration only.
 
+## Search engines
+
+The home page is the only indexable page; `/r`, `/s` and `/debug` carry
+`noindex,nofollow` and are deliberately left crawlable so the crawler can read
+that tag. `public/` holds `robots.txt`, `sitemap.xml` and the social card,
+which vite copies into the build as-is.
+
+The canonical origin is hardcoded, so **changing the domain means editing all
+four pages plus `public/`**. `tests/e2e/seo.spec.ts` asserts the current one
+and will fail loudly if only some are updated. Regenerate the social card with:
+
+```bash
+node tools/og-image.mjs public/og.png
+```
+
 ## Limits
 
 One pairing per browser profile. The seed occupies a single storage slot, so
