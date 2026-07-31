@@ -5,6 +5,38 @@
   "assets": {
     "directory": "./dist/client",
     "binding": "ASSETS",
+    /*
+     * Without this, none of the security headers in src/worker/index.ts reach
+     * a single page of the app. With the wrangler 4 default (false), the asset
+     * server answers anything that matches a static asset and the Worker's
+     * fetch handler never runs; every real page here *is* a static asset, so
+     * the Worker only ever ran for 404s and /ws/* upgrades. Measured before
+     * the fix: `/`, `/r`, `/s`, `/debug` -> 200 with no CSP; `/nope` -> 404
+     * with the full header set. The CSP's connect-src allowlist is what stops
+     * an injected or supply-chain-compromised script from shipping decrypted
+     * links to an arbitrary host, and it was absent on exactly the pages that
+     * hold those links.
+     *
+     * `["/*", "!/assets/*"]` rather than a bare `true`, for two reasons:
+     *
+     *  - Requests to static assets are free and unlimited; requests matching
+     *    run_worker_first are billed as Worker requests, and on the free plan
+     *    exhausting that quota returns 429 instead of falling back to serving
+     *    the asset. Excluding /assets/* keeps most requests off that meter --
+     *    /r alone is one document plus six hashed assets -- so a bot hammering
+     *    the origin cannot take the app down as cheaply.
+     *  - It costs no coverage. /assets/* holds only vite's content-hashed
+     *    build output. CSP constrains the *document*, not the script response,
+     *    so a script served without one loses nothing; HSTS is recorded
+     *    origin-wide from the page that carried it; and a miss under /assets/
+     *    returns an empty 404 body, not an HTML document (measured) — so no
+     *    document anywhere on the origin is served without the headers.
+     *
+     * The positive `/*` is what makes this fail-safe: a page added later is
+     * covered by default, and the only way to lose the headers is to put an
+     * HTML document inside the build-output directory.
+     */
+    "run_worker_first": ["/*", "!/assets/*"],
     // Measured against wrangler 4, not assumed:
     //   drop-trailing-slash: /r -> 200,           /r/ -> 307 to /r
     //   auto-trailing-slash: /r -> 307 to /r/,    /r/ -> 200
