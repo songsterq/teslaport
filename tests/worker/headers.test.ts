@@ -56,4 +56,14 @@ describe("security headers", () => {
     expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(res.headers.get("Cross-Origin-Opener-Policy")).toBe("same-origin");
   });
+
+  // crypto.subtle exists only in a secure context, so an http load is not a
+  // downgrade in this app — it is a page that cannot encrypt at all.
+  it("pins https for a year, without claiming sibling hostnames", async () => {
+    const res = await SELF.fetch(`${BASE}/`);
+    const hsts = res.headers.get("Strict-Transport-Security");
+    expect(hsts).toBe("max-age=31536000");
+    expect(hsts).not.toContain("includeSubDomains");
+    expect(hsts).not.toContain("preload");
+  });
 });

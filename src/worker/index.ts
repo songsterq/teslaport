@@ -8,6 +8,16 @@ export interface Env {
 const WS_PATH = /^\/ws\/([A-Za-z0-9_-]{22})$/;
 
 const SECURITY_HEADERS: Record<string, string> = {
+  /**
+   * One year. Not just transport hardening: `crypto.subtle` only exists in a
+   * secure context, so a car that ever loads this over http gets a page that
+   * cannot encrypt at all. Pinning https removes that failure mode.
+   *
+   * `includeSubDomains` is deliberately absent — it binds every sibling
+   * hostname on the deployment domain, which is the domain owner's call to
+   * make, not this app's.
+   */
+  "Strict-Transport-Security": "max-age=31536000",
   "Referrer-Policy": "no-referrer",
   "X-Content-Type-Options": "nosniff",
   "Cross-Origin-Opener-Policy": "same-origin",
