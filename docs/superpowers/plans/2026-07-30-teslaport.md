@@ -46,6 +46,29 @@ History          = 20 entries, car localStorage
 Ack timeout      = 3 seconds
 ```
 
+**Byte arrays and TypeScript 7:**
+
+TypeScript 7 made typed arrays generic over their backing buffer. A bare
+`Uint8Array` means `Uint8Array<ArrayBufferLike>`, which is **not** assignable to
+DOM's `BufferSource` — so it cannot be passed to any `crypto.subtle` call. Every
+module here crosses that boundary.
+
+`src/shared/bytes.ts` exports the one alias the whole project uses:
+
+```ts
+/**
+ * A Uint8Array pinned to a non-shared ArrayBuffer. TypeScript 7's typed arrays
+ * are generic over their buffer, and only this form satisfies DOM's
+ * `BufferSource` — a bare `Uint8Array` is rejected by every crypto.subtle call.
+ */
+export type Bytes = Uint8Array<ArrayBuffer>;
+```
+
+**Use `Bytes`, never a bare `Uint8Array`, in every exported signature, interface
+field, and local annotation that holds raw bytes.** Do not reach for
+`as BufferSource` casts — a cast silences the checker at one call site and
+leaves the next one to rediscover the problem.
+
 **Other project-wide rules:**
 
 - **Output target ES2019.** No top-level await, no optional chaining in emitted client code beyond what ES2019 allows (TypeScript will downlevel), no exotic APIs. The Tesla browser is Chromium of unknown vintage and has **no developer tools**.
@@ -97,7 +120,7 @@ Ack timeout      = 3 seconds
 
 ```bash
 npm init -y
-npm install --save-dev typescript vite wrangler vitest @cloudflare/vitest-pool-workers @cloudflare/workers-types
+npm install --save-dev typescript vite wrangler vitest @cloudflare/vitest-pool-workers @cloudflare/workers-types @types/node
 npm install --save qrcode-generator
 ```
 
@@ -132,7 +155,7 @@ npm install --save qrcode-generator
     "noUncheckedIndexedAccess": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "types": ["@cloudflare/workers-types", "vite/client"]
+    "types": ["@cloudflare/workers-types", "vite/client", "node"]
   },
   "include": ["src", "tests"]
 }
