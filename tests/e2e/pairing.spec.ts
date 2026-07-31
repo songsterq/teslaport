@@ -117,6 +117,83 @@ test("an unkeyed receiver neither displaces the car nor acks", async ({
   expect(await received).toBeGreaterThan(12);
 });
 
+// The home page is the one nav path with no other coverage, and the car cannot
+// be debugged if a control silently does nothing when tapped.
+test("the home page routes to both roles", async ({ browser }) => {
+  // Separate contexts: a phone that had already been the car would find a seed
+  // in its own storage and come up paired, which would not test the link.
+  const car = await (await browser.newContext()).newPage();
+  await car.goto("/");
+  await car.getByRole("link", { name: /car/i }).click();
+  await expect(car).toHaveURL(/\/r#[0-9A-Z]{24}$/);
+  await expect(car.locator("#qr svg")).toBeVisible();
+
+  const phone = await (await browser.newContext()).newPage();
+  await phone.goto("/");
+  await phone.getByRole("link", { name: /phone/i }).click();
+  await expect(phone).toHaveURL(/\/s$/);
+  await expect(phone.locator("#unpaired")).toBeVisible();
+});
+
+test("the receiver page serves with a trailing slash and keeps the seed", async ({ browser }) => {
+  const code = "0123456789ABCDEFGHJKMNPQ"; // 24 valid Crockford characters
+  const page = await (await browser.newContext()).newPage();
+
+  const response = await page.goto(`/r/#${code}`);
+  expect(response?.status()).toBe(200);
+  await expect(page.locator("#qr svg")).toBeVisible();
+  // The fragment carries the pairing; it must survive the path shape.
+  await expect(page.locator("#code")).toHaveText("012345-6789AB-CDEFGH-JKMNPQ");
+});
+
+// The probe only reports ok once the server answers the byte it sent, so this
+// covers the outbound frame path too — not just the upgrade.
+test("/debug round-trip probes all pass against the real worker", async ({ browser }) => {
+  const page = await (await browser.newContext()).newPage();
+  await page.goto("/debug");
+
+  const row = (label: string) => page.locator(`dt:text-is('${label}') + dd`);
+  await expect(row("WebSocket round-trip")).toContainText(/^ok \(\d+ ms\)$/, { timeout: 15000 });
+  await expect(row("localStorage round-trip")).toHaveText("ok");
+  await expect(row("Crypto round-trip")).toHaveText("ok");
+  await expect(page.locator("#log")).toHaveText("none");
+});
+
+test("a car with a skewed clock reports the skew on /debug", async ({ browser }) => {
+  const SKEW_MS = 47 * 60 * 1000;
+  const context = await browser.newContext();
+  // Every page in this context believes it is 47 minutes ahead — exactly how a
+  // car with a wrong clock behaves. Every link then fails the freshness check.
+  await context.addInitScript({
+    content: `{ const realNow = Date.now.bind(Date); Date.now = () => realNow() + ${SKEW_MS}; }`,
+  });
+
+  const car = await context.newPage();
+  await car.goto("/r");
+  await expect(car.locator("#dot")).toHaveAttribute("data-state", "open");
+  const code = new URL(car.url()).hash.replace(/^#/, "");
+
+  const phone = await (await browser.newContext()).newPage();
+  await phone.goto(`/s#${code}`);
+  await expect(phone.locator("#status")).toHaveText("Car connected");
+  await phone.locator("#url").fill("https://example.com/stale");
+  await phone.locator("#send").click();
+
+  // The car drops the link and never acks it.
+  await expect(phone.locator("#msg")).toContainText("No confirmation from the car");
+  await expect(car.locator("ul#links a")).toHaveCount(0);
+
+  // /debug must name the cause rather than reporting nothing received.
+  const debugPage = await context.newPage();
+  await debugPage.goto("/debug");
+  await expect(
+    debugPage.locator("dt:text-is('Rejected messages') + dd"),
+  ).toContainText("stale 1");
+  await expect(
+    debugPage.locator("dt:text-is('Clock delta vs last sender (ms)') + dd"),
+  ).toContainText("OVER THE 5 MINUTE WINDOW");
+});
+
 test("burning the code strands the old phone", async ({ browser }) => {
   const car = await openCar(browser);
   const oldCode = car.code;

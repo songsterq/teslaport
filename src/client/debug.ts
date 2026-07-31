@@ -33,6 +33,12 @@ function render(): void {
  * Opens a real socket to a throwaway room, sends a byte, and waits for the
  * server's `no-receiver` control reply. That proves the upgrade, the frame
  * path, and the return path — everything the app depends on.
+ *
+ * The reply must be `no-receiver` specifically. The server pushes `presence`
+ * the instant it accepts a sender socket, before this page has sent anything,
+ * so resolving on the first control message would report `ok` while proving
+ * only that the upgrade succeeded — the outbound frame path, the one most
+ * likely to be broken by a proxy, would go untested.
  */
 async function probeWebSocket(): Promise<string> {
   if (typeof WebSocket !== "function") return "MISSING: no WebSocket constructor";
@@ -54,7 +60,15 @@ async function probeWebSocket(): Promise<string> {
     const timer = setTimeout(() => finish("FAILED: no reply within 5s"), 5000);
     ws.addEventListener("open", () => ws.send(new Uint8Array([0])));
     ws.addEventListener("message", (event) => {
-      if (typeof (event as MessageEvent).data !== "string") return;
+      const data = (event as MessageEvent).data;
+      if (typeof data !== "string") return;
+      let control: { t?: unknown };
+      try {
+        control = JSON.parse(data) as { t?: unknown };
+      } catch {
+        return;
+      }
+      if (control.t !== "no-receiver") return;
       clearTimeout(timer);
       finish(`ok (${Date.now() - started} ms)`);
     });

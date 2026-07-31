@@ -12,7 +12,7 @@ import { createSeenStore, type SeenStore } from "../shared/replay";
 import { bumpDropCount, recordClockDelta, installErrorCapture } from "../shared/diagnostics";
 import { loadHistory, pushHistory, clearHistory, type HistoryEntry } from "./history";
 import { connect, type SocketHandle } from "../shared/socket";
-import { resolveSeed, storeSeed, clearSeed } from "./session";
+import { resolveSeed, clearSeed } from "./session";
 import { renderQr } from "./qr";
 
 const storage = window.localStorage;
@@ -48,6 +48,10 @@ function setStatus(state: string, label: string): void {
 async function handleFrame(frame: Bytes): Promise<void> {
   const result = await openEnvelope(pairing, frame, Date.now());
   if (!result.ok) {
+    // Record the delta for stale drops too, not just accepted messages. A car
+    // whose clock is off by more than the window rejects everything, so the
+    // accepted path alone can never show a delta big enough to explain it.
+    if (result.reason === "stale") recordClockDelta(storage, Date.now() - result.ts);
     bumpDropCount(storage, result.reason);
     return;
   }

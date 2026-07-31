@@ -81,10 +81,25 @@ describe("envelope", () => {
 
   it("rejects timestamps outside the freshness window in both directions", async () => {
     const p = await pairing();
-    const old = await seal(p, urlPayload({ ts: NOW - FRESHNESS_WINDOW_MS - 1 }));
-    const future = await seal(p, urlPayload({ ts: NOW + FRESHNESS_WINDOW_MS + 1 }));
-    expect(await openEnvelope(p, old, NOW)).toEqual({ ok: false, reason: "stale" });
-    expect(await openEnvelope(p, future, NOW)).toEqual({ ok: false, reason: "stale" });
+    const oldTs = NOW - FRESHNESS_WINDOW_MS - 1;
+    const futureTs = NOW + FRESHNESS_WINDOW_MS + 1;
+    const old = await seal(p, urlPayload({ ts: oldTs }));
+    const future = await seal(p, urlPayload({ ts: futureTs }));
+    expect(await openEnvelope(p, old, NOW)).toEqual({ ok: false, reason: "stale", ts: oldTs });
+    expect(await openEnvelope(p, future, NOW)).toEqual({ ok: false, reason: "stale", ts: futureTs });
+  });
+
+  // Without the sender's ts on the rejection, /debug can only ever see deltas
+  // that already passed the window — which is every delta except the ones that
+  // matter. A car with a badly wrong clock rejects everything and would report
+  // "no message received yet" rather than the skew causing it.
+  it("carries the sender ts on a stale rejection so clock skew is observable", async () => {
+    const p = await pairing();
+    const skew = 47 * 60 * 1000;
+    const result = await openEnvelope(p, await seal(p, urlPayload({ ts: NOW })), NOW + skew);
+    expect(result.ok).toBe(false);
+    if (result.ok || result.reason !== "stale") throw new Error("expected a stale rejection");
+    expect(NOW + skew - result.ts).toBe(skew);
   });
 
   it("accepts timestamps exactly at the window boundary", async () => {

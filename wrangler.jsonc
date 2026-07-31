@@ -5,6 +5,16 @@
   "assets": {
     "directory": "./dist/client",
     "binding": "ASSETS",
+    // Measured against wrangler 4, not assumed:
+    //   drop-trailing-slash: /r -> 200,           /r/ -> 307 to /r
+    //   auto-trailing-slash: /r -> 307 to /r/,    /r/ -> 200
+    // The app's own URLs are /r, /s and /debug with no trailing slash — the
+    // QR code and the bookmark both encode that form — so this is the mode
+    // that serves them directly. auto-trailing-slash would put a redirect in
+    // front of every pairing URL, and the seed rides in the fragment, which
+    // survives a redirect only because browsers reapply it. (The design plan
+    // called for auto-trailing-slash on the grounds that it avoids a redirect
+    // for /r; that is backwards for this wrangler version.)
     "html_handling": "drop-trailing-slash",
     "not_found_handling": "404-page"
   },

@@ -11,7 +11,15 @@ export type RejectReason = "decrypt" | "malformed" | "scheme" | "stale";
 
 export type OpenResult =
   | { ok: true; payload: Payload }
-  | { ok: false; reason: RejectReason };
+  /**
+   * A stale rejection carries the sender's `ts` — it authenticated, so it is
+   * trustworthy, and it is the only way the car can observe a clock skew large
+   * enough to reject every message. Reporting the reason alone would leave
+   * `/debug` showing "no message received yet" for the single failure mode it
+   * exists to diagnose.
+   */
+  | { ok: false; reason: "stale"; ts: number }
+  | { ok: false; reason: Exclude<RejectReason, "stale"> };
 
 const TAG_BYTES = TAG_BITS / 8;
 
@@ -50,7 +58,12 @@ function isValidPayload(value: unknown): value is Payload {
   return false;
 }
 
-function hasAllowedScheme(url: string): boolean {
+/**
+ * The single definition of a URL this app is willing to hand to the browser.
+ * Exported so every place that can put a URL in front of the user — the wire,
+ * and the car's persisted history — asks the same question.
+ */
+export function hasAllowedScheme(url: string): boolean {
   try {
     const parsed = new URL(url);
     return parsed.protocol === "http:" || parsed.protocol === "https:";
@@ -95,7 +108,9 @@ export async function openEnvelope(
 
   if (parsed.t === "url") {
     if (!hasAllowedScheme(parsed.url)) return { ok: false, reason: "scheme" };
-    if (Math.abs(now - parsed.ts) > FRESHNESS_WINDOW_MS) return { ok: false, reason: "stale" };
+    if (Math.abs(now - parsed.ts) > FRESHNESS_WINDOW_MS) {
+      return { ok: false, reason: "stale", ts: parsed.ts };
+    }
   }
   return { ok: true, payload: parsed };
 }
