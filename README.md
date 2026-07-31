@@ -35,6 +35,30 @@ npm run deploy
 Then point a domain at the Worker in the Cloudflare dashboard. Durable Objects
 run on the free plan, so hosting cost is the domain registration only.
 
+## Search engines
+
+The home page is the only indexable page; `/r`, `/s` and `/debug` carry
+`noindex,nofollow` and are deliberately left crawlable so the crawler can read
+that tag.
+
+**No domain is written down anywhere.** The Worker injects
+`<link rel="canonical">` and fills the origin into the `og:` URLs from the host
+that served the request, and generates `robots.txt` and `sitemap.xml` the same
+way, so the site can move domains with no edit at all. `public/` holds only the
+social card. Regenerate it with:
+
+```bash
+node tools/og-image.mjs public/og.png
+```
+
+The catch of deriving the origin from the host is that every hostname reaching
+the Worker claims to be the canonical one — including the `workers.dev`
+hostname assigned on the first deploy, which would otherwise be an indexable
+duplicate of the real site. Responses on `*.workers.dev` get `X-Robots-Tag:
+noindex` for that reason. If you ever serve the site from a second real domain,
+it will self-canonicalise and split the ranking; add it to that rule or
+redirect it.
+
 ## Limits
 
 One pairing per browser profile. The seed occupies a single storage slot, so

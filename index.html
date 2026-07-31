@@ -3,8 +3,28 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>TeslaPort</title>
-    <meta name="description" content="Send links from your phone to your Tesla's browser. Encrypted end to end; the relay cannot read them." />
+    <title>TeslaPort — Tesla Link Sharing From Phone to Car Browser</title>
+    <meta name="description" content="Tesla link sharing without an app or an account. Paste a URL on your phone and it opens in your Tesla's browser a second later, encrypted end to end." />
+    <!--
+      No canonical tag and no absolute URLs here on purpose. The Worker injects
+      <link rel="canonical"> and fills the origin into the og: URLs below from
+      the host that served the request (see src/worker/index.ts), so moving the
+      site to another domain needs no edit to any page. The og: values stay
+      root-relative; a scraper never sees these, only the rewritten output.
+    -->
+    <meta name="robots" content="index,follow,max-image-preview:large" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="TeslaPort" />
+    <meta property="og:title" content="TeslaPort — Tesla link sharing from phone to car" />
+    <meta property="og:description" content="Paste a URL on your phone and it opens in your Tesla's browser a second later. No app, no account, encrypted end to end." />
+    <meta property="og:url" content="/" />
+    <meta property="og:image" content="/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="TeslaPort — Tesla link sharing from phone to car." />
+    <meta name="twitter:card" content="summary_large_image" />
+
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none'%3E%3Cpath d='M53.61 24.13A23 23 0 0 0 10.39 24.13' stroke='%233ddad7' stroke-width='7' stroke-linecap='round'/%3E%3Cpath d='M10.39 39.87A23 23 0 0 0 53.61 39.87' stroke='%233ddad7' stroke-width='7' stroke-linecap='round'/%3E%3Cpath d='M22 20 40 32 22 44' stroke='%23f5f8fa' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
     <link rel="stylesheet" href="/src/client/app.css" />
   </head>
@@ -33,12 +53,12 @@
       <section class="hero">
         <div class="wrap">
           <div>
-            <p class="eyebrow">Encrypted link relay · Tesla browser</p>
-            <h1>Teleport a link<span class="accent">from your phone to your car.</span></h1>
-            <p class="lede">Paste a URL on your phone, tap send, and it lands on the car's browser a second later. No app, no account, no cable.</p>
+            <p class="eyebrow">Tesla link sharing · encrypted relay</p>
+            <h1>Tesla link sharing<span class="accent">from your phone to your car.</span></h1>
+            <p class="lede">Paste a URL on your phone, tap send, and it lands on your Tesla's browser a second later. No app, no account, no cable.</p>
             <div class="cta">
-              <a class="button primary" href="/r">I'm the car — show my code</a>
-              <a class="button" href="/s">I'm the phone — send a link</a>
+              <a class="button primary" href="/r">I'm in the car - show my code</a>
+              <a class="button" href="/s">I'm on my phone - share link now</a>
             </div>
             <p class="trust">
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2.5 20 6v6c0 4.6-3.2 8.5-8 9.5-4.8-1-8-4.9-8-9.5V6l8-3.5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" /></svg>
@@ -83,7 +103,7 @@
       <section class="section" id="how">
         <div class="wrap">
           <p class="eyebrow">How it works</p>
-          <h2>Pair once, then send all you like.</h2>
+          <h2>Pair once, then share links with your Tesla all you like.</h2>
           <div class="steps">
             <div class="step">
               <span class="lbl">Step 01</span>
@@ -107,7 +127,7 @@
       <section class="section">
         <div class="wrap">
           <p class="eyebrow">What it is</p>
-          <h2>A private door between two screens.</h2>
+          <h2>A private door between your phone and your Tesla.</h2>
           <div class="cards">
             <div class="card">
               <span class="num">01</span>
@@ -123,6 +143,44 @@
               <span class="num">03</span>
               <h3>Nothing is stored</h3>
               <p>The server keeps no database. It fans each link straight through to the car and then forgets it completely.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!--
+        These six answers are duplicated verbatim in the FAQPage JSON-LD at the
+        foot of this file. Marking up an answer a visitor cannot see on the page
+        is a structured-data violation, so the two copies must change together.
+      -->
+      <section class="section" id="faq">
+        <div class="wrap">
+          <p class="eyebrow">FAQ</p>
+          <h2>Questions about Tesla link sharing.</h2>
+          <div class="cards">
+            <div class="card">
+              <h3>What is Tesla link sharing?</h3>
+              <p>Tesla link sharing means opening a page you found on your phone on the car's screen instead of retyping the address into the car's browser. TeslaPort does it over an encrypted relay.</p>
+            </div>
+            <div class="card">
+              <h3>How do I send a link from my phone to my Tesla?</h3>
+              <p>Open TeslaPort on the car's browser, scan the QR code with your phone, then paste any URL and tap send. It appears on the car screen a second later.</p>
+            </div>
+            <div class="card">
+              <h3>Do I need an app or a Tesla account?</h3>
+              <p>No. TeslaPort is two web pages and a QR code — nothing to install on the phone, nothing to sign up for, and it never touches your Tesla account.</p>
+            </div>
+            <div class="card">
+              <h3>Does this work with Tesla's built-in browser?</h3>
+              <p>Yes. It is built for that browser: the car page is plain HTML and JavaScript, and a link you tap opens in the same tab the browser is already showing.</p>
+            </div>
+            <div class="card">
+              <h3>Is sharing a link to my Tesla private?</h3>
+              <p>Your phone encrypts each link and only the paired car can decrypt it. The relay moves opaque bytes it holds no key for, and stores nothing.</p>
+            </div>
+            <div class="card">
+              <h3>Which Tesla models does this work with?</h3>
+              <p>Any Tesla whose touchscreen has the web browser. Nothing here is model-specific — if the browser loads the page and the QR code renders, pairing works.</p>
             </div>
           </div>
         </div>
@@ -159,5 +217,74 @@
     </footer>
 
     <script type="module" src="/src/client/home.ts"></script>
+
+    <!--
+      Structured data. These are ld+json data blocks, not executable script, so
+      the CSP's `script-src 'self'` does not apply to them — verified in the
+      browser console against the real Worker, not assumed. If a future CSP
+      change does start blocking them, add a 'sha256-…' source for these two
+      blocks rather than 'unsafe-inline': the policy's job is to stop an
+      injected script shipping decrypted links off-origin, and a blanket inline
+      allowance would retire that for the sake of a search-engine nicety.
+
+      The FAQPage answers below must match the #faq section verbatim.
+
+      No "url" property, and no absolute URL anywhere in here. The Worker
+      absolutises attributes, not the text inside a script element — doing that
+      safely means buffering the whole text node, since a token can straddle
+      two chunks. The property is redundant anyway: <link rel="canonical"> is
+      the authoritative statement of this page's URL, and SoftwareApplication
+      does not require one.
+    -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "TeslaPort",
+        "description": "Tesla link sharing without an app or an account. Paste a URL on your phone and it opens in your Tesla's browser a second later, encrypted end to end.",
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Any modern web browser",
+        "browserRequirements": "Requires JavaScript and WebCrypto over HTTPS",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is Tesla link sharing?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Tesla link sharing means opening a page you found on your phone on the car's screen instead of retyping the address into the car's browser. TeslaPort does it over an encrypted relay." }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I send a link from my phone to my Tesla?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Open TeslaPort on the car's browser, scan the QR code with your phone, then paste any URL and tap send. It appears on the car screen a second later." }
+          },
+          {
+            "@type": "Question",
+            "name": "Do I need an app or a Tesla account?",
+            "acceptedAnswer": { "@type": "Answer", "text": "No. TeslaPort is two web pages and a QR code — nothing to install on the phone, nothing to sign up for, and it never touches your Tesla account." }
+          },
+          {
+            "@type": "Question",
+            "name": "Does this work with Tesla's built-in browser?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. It is built for that browser: the car page is plain HTML and JavaScript, and a link you tap opens in the same tab the browser is already showing." }
+          },
+          {
+            "@type": "Question",
+            "name": "Is sharing a link to my Tesla private?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Your phone encrypts each link and only the paired car can decrypt it. The relay moves opaque bytes it holds no key for, and stores nothing." }
+          },
+          {
+            "@type": "Question",
+            "name": "Which Tesla models does this work with?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Any Tesla whose touchscreen has the web browser. Nothing here is model-specific — if the browser loads the page and the QR code renders, pairing works." }
+          }
+        ]
+      }
+    </script>
   </body>
 </html>
