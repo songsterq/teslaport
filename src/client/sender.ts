@@ -6,6 +6,7 @@ import { connect, type SocketHandle, type ConnectionStatus } from "../shared/soc
 import { installErrorCapture } from "../shared/diagnostics";
 import { resolveSeed, storeSeed, storeRole } from "./session";
 import { ACK_TIMEOUT_MS } from "../shared/protocol";
+import { resolveStorage } from "./storage";
 
 export function normaliseInputUrl(raw: string): string | null {
   const trimmed = raw.trim();
@@ -22,7 +23,7 @@ export function normaliseInputUrl(raw: string): string | null {
 }
 
 function bootstrap(): void {
-  const storage = window.localStorage;
+  const { store: storage } = resolveStorage();
   // Error capture first: a storeRole failure (quota, restricted storage) is
   // then recorded for /debug instead of killing bootstrap silently. The car
   // has no developer tools, so an uncaptured startup throw is invisible.

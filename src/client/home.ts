@@ -1,4 +1,5 @@
 import { loadRole } from "./session";
+import { resolveStorage } from "./storage";
 import type { Role } from "../shared/protocol";
 
 /**
@@ -20,13 +21,9 @@ export function redirectTarget(role: Role | null, search: string): "/r" | "/s" |
 }
 
 function bootstrap(): void {
-  let role: Role | null = null;
-  try {
-    role = loadRole(window.localStorage);
-  } catch {
-    // localStorage unavailable — leave the chooser visible.
-    return;
-  }
+  // Blocked storage resolves to an empty stand-in, so no role is found and the
+  // chooser stays visible — the same outcome the old try/catch produced.
+  const role: Role | null = loadRole(resolveStorage().store);
   const path = redirectTarget(role, location.search);
   if (path) location.replace(path);
 }
