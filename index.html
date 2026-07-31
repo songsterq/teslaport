@@ -4,17 +4,143 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>TeslaPort</title>
+    <meta name="description" content="Send links from your phone to your Tesla's browser. Encrypted end to end; the relay cannot read them." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none'%3E%3Cpath d='M53.61 24.13A23 23 0 0 0 10.39 24.13' stroke='%233ddad7' stroke-width='7' stroke-linecap='round'/%3E%3Cpath d='M10.39 39.87A23 23 0 0 0 53.61 39.87' stroke='%233ddad7' stroke-width='7' stroke-linecap='round'/%3E%3Cpath d='M22 20 40 32 22 44' stroke='%23f5f8fa' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
     <link rel="stylesheet" href="/src/client/app.css" />
   </head>
   <body>
-    <h1>TeslaPort</h1>
-    <section class="panel">
-      <p>Send links from your phone to your car's browser. Links are encrypted in your browser; the server cannot read them.</p>
-      <div class="row">
-        <a class="button primary" href="/r">I'm the car — show my code</a>
-        <a class="button" href="/s">I'm the phone — send a link</a>
+    <!--
+      The header and footer are repeated verbatim on each page rather than
+      injected by script. On the car screen a wordmark that vanishes when a
+      module fails to load is worse than four copies of eight lines, and there
+      is no templating step in this build.
+    -->
+    <header class="site-header">
+      <div class="wrap">
+        <a class="brand" href="/?choose">
+          <svg class="mark" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+            <path d="M53.61 24.13 A23 23 0 0 0 10.39 24.13" stroke="#3ddad7" stroke-width="5" stroke-linecap="round" />
+            <path d="M10.39 39.87 A23 23 0 0 0 53.61 39.87" stroke="#3ddad7" stroke-width="5" stroke-linecap="round" />
+            <path d="M22 20 L40 32 L22 44" stroke="#f5f8fa" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <b>TeslaPort</b>
+        </a>
+        <a class="ghost" href="#how">How it works</a>
       </div>
-    </section>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="wrap">
+          <div>
+            <p class="eyebrow">Encrypted link relay · Tesla browser</p>
+            <h1>Teleport a link<span class="accent">from your phone to your car.</span></h1>
+            <p class="lede">Paste a URL on your phone, tap send, and it lands on the car's browser a second later. No app, no account, no cable.</p>
+            <div class="cta">
+              <a class="button primary" href="/r">I'm the car — show my code</a>
+              <a class="button" href="/s">I'm the phone — send a link</a>
+            </div>
+            <p class="trust">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2.5 20 6v6c0 4.6-3.2 8.5-8 9.5-4.8-1-8-4.9-8-9.5V6l8-3.5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" /></svg>
+              End-to-end encrypted · the relay can't read your links
+            </p>
+          </div>
+
+          <div class="art-col">
+            <svg class="art" viewBox="0 0 576 420" fill="none" aria-hidden="true">
+              <circle class="ring-glow" cx="260" cy="210" r="150" stroke="#3ddad7" stroke-width="1" opacity=".18" />
+              <circle class="ring-glow ring-glow-late" cx="260" cy="210" r="120" stroke="#3ddad7" stroke-width="1" opacity=".26" />
+
+              <rect x="24" y="166" width="78" height="140" rx="14" fill="#1b1f27" stroke="rgba(255,255,255,.16)" />
+              <rect x="32" y="176" width="62" height="120" rx="7" fill="#0b0d10" />
+              <rect x="39" y="188" width="48" height="9" rx="4.5" fill="#3ddad7" opacity=".85" />
+              <rect x="39" y="203" width="34" height="7" rx="3.5" fill="#a8b3c1" opacity=".28" />
+              <rect x="39" y="262" width="48" height="22" rx="7" fill="#3ddad7" opacity=".9" />
+
+              <path class="beam" d="M102 236 L384 184" stroke="#3ddad7" stroke-width="2.5" stroke-linecap="round" opacity=".9" />
+
+              <path d="M342.69 179.90 A88 88 0 0 0 177.31 179.90" stroke="#3ddad7" stroke-width="7" stroke-linecap="round" />
+              <path d="M177.31 240.10 A88 88 0 0 0 342.69 240.10" stroke="#3ddad7" stroke-width="7" stroke-linecap="round" />
+              <path d="M221.7 164.1 L290.6 210 L221.7 255.9" stroke="#f5f8fa" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" />
+
+              <rect x="384" y="125" width="168" height="118" rx="12" fill="#1b1f27" stroke="rgba(255,255,255,.16)" />
+              <rect x="392" y="133" width="152" height="102" rx="7" fill="#0b0d10" />
+              <rect x="400" y="143" width="136" height="24" rx="6" fill="#3ddad7" opacity=".16" />
+              <rect x="400" y="143" width="3" height="24" rx="1.5" fill="#3ddad7" />
+              <rect x="410" y="152" width="86" height="6" rx="3" fill="#3ddad7" opacity=".85" />
+              <rect x="400" y="173" width="136" height="24" rx="6" fill="#ffffff" opacity=".04" />
+              <rect x="410" y="182" width="66" height="6" rx="3" fill="#a8b3c1" opacity=".38" />
+              <rect x="400" y="203" width="136" height="24" rx="6" fill="#ffffff" opacity=".04" />
+              <rect x="410" y="212" width="98" height="6" rx="3" fill="#a8b3c1" opacity=".38" />
+              <path d="M448 243 V262 M420 264 H476" stroke="rgba(255,255,255,.16)" stroke-width="4" stroke-linecap="round" />
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="wrap">
+          <p class="eyebrow">What it is</p>
+          <h2>A private door between two screens.</h2>
+          <div class="cards">
+            <div class="card">
+              <span class="num">01</span>
+              <h3>Encrypted end to end</h3>
+              <p>Your phone encrypts the link and only the car can open it. The relay moves opaque bytes it has no key for.</p>
+            </div>
+            <div class="card">
+              <span class="num">02</span>
+              <h3>No app, no account</h3>
+              <p>Two web pages and a QR code. Nothing to install on the phone, nothing to sign up for, nothing to log into.</p>
+            </div>
+            <div class="card">
+              <span class="num">03</span>
+              <h3>Nothing is stored</h3>
+              <p>The server keeps no database. It fans each link straight through to the car and then forgets it completely.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="how">
+        <div class="wrap">
+          <p class="eyebrow">How it works</p>
+          <h2>Pair once, then send all you like.</h2>
+          <div class="steps">
+            <div class="step">
+              <span class="lbl">Step 01</span>
+              <h3>Open it on the car</h3>
+              <p>The car screen shows a QR code and a short pairing code. Bookmark the page while you're there.</p>
+            </div>
+            <div class="step">
+              <span class="lbl">Step 02</span>
+              <h3>Scan with your phone</h3>
+              <p>Scanning pairs the two devices. The key rides in the link's fragment, which never reaches the server.</p>
+            </div>
+            <div class="step">
+              <span class="lbl">Step 03</span>
+              <h3>Send a link</h3>
+              <p>Paste, tap send, and watch it appear on the car. Tap it there to open it in the car's browser.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap">
+        <span class="brand">
+          <svg class="mark" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+            <path d="M53.61 24.13 A23 23 0 0 0 10.39 24.13" stroke="#3ddad7" stroke-width="5" stroke-linecap="round" />
+            <path d="M10.39 39.87 A23 23 0 0 0 53.61 39.87" stroke="#3ddad7" stroke-width="5" stroke-linecap="round" />
+            <path d="M22 20 L40 32 L22 44" stroke="#f5f8fa" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <b>TeslaPort</b>
+        </span>
+        <span class="meta">Runs on Cloudflare · the relay stores nothing</span>
+      </div>
+    </footer>
+
     <script type="module" src="/src/client/home.ts"></script>
   </body>
 </html>

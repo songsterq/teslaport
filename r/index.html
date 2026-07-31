@@ -4,29 +4,49 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>TeslaPort — Car</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none'%3E%3Cpath d='M53.61 24.13A23 23 0 0 0 10.39 24.13' stroke='%233ddad7' stroke-width='7' stroke-linecap='round'/%3E%3Cpath d='M10.39 39.87A23 23 0 0 0 53.61 39.87' stroke='%233ddad7' stroke-width='7' stroke-linecap='round'/%3E%3Cpath d='M22 20 40 32 22 44' stroke='%23f5f8fa' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
     <link rel="stylesheet" href="/src/client/app.css" />
   </head>
   <body>
-    <h1>TeslaPort</h1>
-    <div class="layout">
-      <section class="panel pair">
-        <div id="qr"></div>
-        <div class="code" id="code"></div>
-        <div class="status"><span class="dot" id="dot"></span><span id="status">Connecting…</span></div>
-        <p class="hint" id="hint">Scan with your phone to pair.</p>
-        <p class="hint" id="bookmark"></p>
-        <div class="row">
-          <button id="burn">Burn code</button>
-          <button id="clear">Clear history</button>
-        </div>
-      </section>
-      <section class="panel feed">
-        <h2>Received links</h2>
-        <ul class="links" id="links"></ul>
-        <p class="empty" id="empty">Nothing yet. Send a link from your phone.</p>
-        <p class="hint"><a href="/?choose">Start over</a> · <a href="/debug">Diagnostics</a></p>
-      </section>
-    </div>
+    <header class="site-header">
+      <div class="wrap">
+        <span class="brand">
+          <svg class="mark" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+            <path d="M53.61 24.13 A23 23 0 0 0 10.39 24.13" stroke="#3ddad7" stroke-width="5" stroke-linecap="round" />
+            <path d="M10.39 39.87 A23 23 0 0 0 53.61 39.87" stroke="#3ddad7" stroke-width="5" stroke-linecap="round" />
+            <path d="M22 20 L40 32 L22 44" stroke="#f5f8fa" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <b>TeslaPort</b>
+        </span>
+        <a class="ghost" href="/?choose">Start over</a>
+      </div>
+    </header>
+
+    <main class="wrap page">
+      <div class="layout">
+        <section class="panel pair">
+          <div class="qr-frame"><div id="qr"></div></div>
+          <div class="code" id="code"></div>
+          <div class="status"><span class="dot" id="dot"></span><span id="status">Connecting…</span></div>
+          <p class="hint" id="hint">Scan with your phone to pair.</p>
+          <p class="callout" id="bookmark"></p>
+          <div class="panel-foot">
+            <button class="quiet" id="burn">Burn code</button>
+            <button class="quiet" id="clear">Clear history</button>
+          </div>
+        </section>
+        <section class="panel feed">
+          <h2>Received links</h2>
+          <ul class="links" id="links"></ul>
+          <p class="empty" id="empty">Nothing yet. Send a link from your phone.</p>
+          <!-- "Start over" lives in the header now. The end-to-end suite clicks
+               a[href="/?choose"] in strict mode, so a second copy here would be
+               ambiguous rather than merely redundant. -->
+          <p class="hint"><a href="/debug">Diagnostics</a></p>
+        </section>
+      </div>
+    </main>
+
     <script type="module" src="/src/client/receiver.ts"></script>
   </body>
 </html>

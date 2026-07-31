@@ -1,69 +1,139 @@
+/*
+ * Colours are hex and rgba(), never oklch(). The car runs Chromium of an
+ * unknown vintage and oklch() only arrived in Chrome 111; a colour the browser
+ * cannot parse falls back to nothing on a screen with no developer tools.
+ * The same caution rules out :has(), container queries, and CSS nesting.
+ */
 :root {
   --bg: #0b0d10;
-  --panel: #16191f;
-  --line: #2a2f38;
-  --text: #f2f5f9;
-  --muted: #9aa4b2;
-  --accent: #4da3ff;
+  --bg-2: #14171d;
+  --bg-3: #1b1f27;
+  --fg: #f5f8fa;
+  --fg-mut: #a8b3c1;
+  --fg-dim: #6f7c8c;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-2: rgba(255, 255, 255, 0.16);
+  --accent: #3ddad7;
+  --accent-soft: rgba(61, 218, 215, 0.12);
+  --on-accent: #04211f;
   --ok: #3ddc84;
   --warn: #ffb020;
   --bad: #ff5d5d;
+  --maxw: 1100px;
+  --pad: clamp(20px, 5vw, 56px);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
   color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
 
+/*
+ * `hidden` is how receiver.ts and sender.ts show and hide whole panels. A
+ * later rule that sets `display` on one of those elements would silently
+ * defeat the attribute, so re-assert it once here at a weight nothing else
+ * in this file reaches.
+ */
+[hidden] { display: none !important; }
+
+html, body { margin: 0; }
+
 body {
-  margin: 0;
-  padding: 24px;
   background: var(--bg);
-  color: var(--text);
-  font: 16px/1.5 system-ui, -apple-system, sans-serif;
+  color: var(--fg);
+  font: 400 17px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-h1 { font-size: 24px; margin: 0 0 16px; }
+a { color: inherit; }
 
-.layout { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
-.panel {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 20px;
-}
-.pair { flex: 0 0 320px; text-align: center; }
-.feed { flex: 1 1 420px; min-width: 320px; }
-
-#qr { width: 260px; height: 260px; margin: 0 auto 16px; background: #fff; padding: 12px; border-radius: 8px; }
-#qr svg { display: block; }
-
-.code {
-  font: 600 22px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: 2px;
-  word-break: break-all;
+.wrap {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding-inline: var(--pad);
 }
 
-.hint { color: var(--muted); font-size: 14px; margin-top: 12px; }
+/* ---------- typography ---------- */
 
-.status { display: flex; align-items: center; gap: 8px; justify-content: center; margin-top: 12px; font-size: 15px; }
-.dot { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); }
-.dot[data-state="open"] { background: var(--ok); }
-.dot[data-state="connecting"] { background: var(--warn); }
-.dot[data-state="closed"] { background: var(--bad); }
+/*
+ * No web fonts: the CSP omits font-src entirely, so a Google Fonts request
+ * would be blocked. Weight and tracking carry the display voice instead of a
+ * typeface — heavy, tight, and large.
+ */
+h1 {
+  font: 800 clamp(36px, 4.6vw, 54px)/1.02 system-ui, -apple-system, sans-serif;
+  letter-spacing: -0.03em;
+  margin: 0 0 22px;
+}
 
-ul.links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
-ul.links a {
-  display: block;
-  padding: 20px;
-  min-height: 64px;
-  background: #1d222b;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  color: var(--accent);
-  font-size: 20px;
+h2 {
+  font: 700 clamp(24px, 3.4vw, 36px)/1.15 system-ui, sans-serif;
+  letter-spacing: -0.02em;
+  margin: 0 0 40px;
+  max-width: 20ch;
+}
+
+h3 {
+  font: 700 19px/1.3 system-ui, sans-serif;
+  letter-spacing: -0.015em;
+  margin: 0 0 10px;
+}
+
+.eyebrow {
+  font: 600 12px/1 system-ui, sans-serif;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  margin: 0 0 20px;
+}
+
+.hint { color: var(--fg-mut); font-size: 14.5px; margin-top: 12px; }
+.hint a { color: var(--accent); }
+.empty { color: var(--fg-dim); }
+
+/* ---------- header and footer ---------- */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(11, 13, 16, 0.72);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+
+.site-header .wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 68px;
+}
+
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.brand .mark { width: 26px; height: 26px; display: block; flex: none; }
+.brand b { font: 800 19px/1 system-ui, sans-serif; letter-spacing: -0.02em; }
+
+.ghost {
+  font: 600 14px/1 system-ui, sans-serif;
   text-decoration: none;
-  word-break: break-all;
+  color: var(--fg-mut);
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  padding: 10px 16px;
+  white-space: nowrap;
 }
-ul.links a:active { background: #262c37; }
+
+.site-footer { border-top: 1px solid var(--line); padding-block: 32px; margin-top: 56px; }
+.site-footer .wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.site-footer .meta { color: var(--fg-dim); font-size: 13.5px; }
+
+/* ---------- controls ---------- */
 
 /* `a.button` is for navigation, `button` for actions. Nesting a <button>
    inside an <a> is invalid HTML — the anchor may not contain interactive
@@ -71,15 +141,17 @@ ul.links a:active { background: #262c37; }
    On a screen with no developer tools, a nav control that silently does
    nothing is not a risk worth taking for a shared border-radius. */
 button, a.button {
-  font: inherit;
-  min-height: 52px;
-  padding: 0 20px;
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  background: #1d222b;
-  color: var(--text);
+  font: 600 16px/1 system-ui, sans-serif;
+  letter-spacing: -0.01em;
+  min-height: 56px;
+  padding: 0 24px;
+  border-radius: 12px;
+  border: 1px solid var(--line-2);
+  background: var(--bg-3);
+  color: var(--fg);
   cursor: pointer;
 }
+
 a.button {
   display: inline-flex;
   align-items: center;
@@ -87,28 +159,311 @@ a.button {
   text-align: center;
   text-decoration: none;
 }
+
 button.primary, a.button.primary {
   background: var(--accent);
-  color: #04121f;
+  color: var(--on-accent);
   border-color: transparent;
-  font-weight: 600;
+  font-weight: 700;
+  box-shadow: 0 0 0 1px rgba(61, 218, 215, 0.3), 0 8px 30px -8px rgba(61, 218, 215, 0.45);
 }
-button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+button.quiet {
+  min-height: 44px;
+  padding: 0 16px;
+  font-size: 14.5px;
+  background: transparent;
+  border-color: var(--line);
+  color: var(--fg-mut);
+}
+
+button:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
 
 input[type="url"], input[type="text"] {
   width: 100%;
   font: inherit;
-  min-height: 52px;
-  padding: 0 14px;
-  border-radius: 10px;
-  border: 1px solid var(--line);
+  min-height: 56px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line-2);
   background: #0f1216;
-  color: var(--text);
+  color: var(--fg);
 }
 
-.empty { color: var(--muted); }
+/* The pairing code is transcribed character by character from the car screen,
+   so it is set in the same monospace face it is displayed in there. */
+#manual { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 1px; }
+
+input::placeholder { color: var(--fg-dim); }
+input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 .row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
-.msg { margin-top: 12px; min-height: 24px; font-size: 15px; }
+
+/* ---------- status pill ---------- */
+
+/*
+ * The state lives on #dot, set by receiver.ts and sender.ts. Tinting the
+ * whole pill from a child's attribute would need :has(), so the pill stays
+ * neutral and the dot alone carries the colour.
+ */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px 9px 13px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-3);
+  font-size: 14.5px;
+  color: var(--fg-mut);
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--fg-dim);
+}
+
+.dot[data-state="open"] { background: var(--ok); box-shadow: 0 0 0 4px rgba(61, 220, 132, 0.16); }
+.dot[data-state="connecting"] { background: var(--warn); box-shadow: 0 0 0 4px rgba(255, 176, 32, 0.16); }
+.dot[data-state="closed"] { background: var(--bad); box-shadow: 0 0 0 4px rgba(255, 93, 93, 0.16); }
+
+.msg { margin-top: 14px; min-height: 24px; font-size: 15px; }
 .msg[data-tone="ok"] { color: var(--ok); }
 .msg[data-tone="warn"] { color: var(--warn); }
 .msg[data-tone="bad"] { color: var(--bad); }
+
+/* ---------- landing page ---------- */
+
+/*
+ * svh first with a vh fallback ahead of it: older Chromium ignores the svh
+ * declaration and keeps the vh one, which is close enough.
+ */
+.hero {
+  min-height: calc(100vh - 68px);
+  min-height: calc(100svh - 68px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+}
+
+/*
+ * width:100% is load-bearing. `margin: 0 auto` on a grid item suppresses the
+ * default stretch and makes the item size to fit-content, which centred the
+ * whole hero and moved its left edge away from the one every other section
+ * uses. Resizing the window then visibly jumped.
+ */
+.hero .wrap {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: clamp(24px, 4vw, 52px);
+  align-items: center;
+  padding-block: clamp(32px, 6vh, 72px);
+}
+
+h1 .accent { color: var(--accent); display: block; }
+.lede { margin: 0 0 30px; color: var(--fg-mut); max-width: 42ch; }
+
+.cta { display: grid; gap: 12px; max-width: 392px; }
+
+.trust {
+  margin: 26px 0 0;
+  font-size: 13.5px;
+  color: var(--fg-dim);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.trust svg { width: 15px; height: 15px; flex: none; color: var(--accent); }
+
+.art { width: 100%; height: auto; display: block; }
+.beam { stroke-dasharray: 10 12; animation: flow 2.4s linear infinite; }
+.ring-glow { animation: breathe 4s ease-in-out infinite; }
+.ring-glow-late { animation-delay: -1.3s; }
+
+@keyframes flow { to { stroke-dashoffset: -44; } }
+@keyframes breathe { 0%, 100% { opacity: 0.18; } 50% { opacity: 0.42; } }
+
+/*
+ * The promise is that both role buttons are reachable without scrolling. On a
+ * short window the art is what breaks that promise, so it goes rather than the
+ * buttons.
+ */
+@media (max-height: 640px), (max-width: 820px) {
+  .hero .wrap { grid-template-columns: minmax(0, 1fr); }
+  .art-col { display: none; }
+}
+
+.section { padding-block: clamp(64px, 10vh, 120px); border-top: 1px solid var(--line); }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.card {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 26px 24px 28px;
+}
+.card p { margin: 0; color: var(--fg-mut); font-size: 15.5px; }
+.num {
+  font: 600 13px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  display: block;
+  margin-bottom: 18px;
+}
+
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.step { padding: 24px 0 0; border-top: 2px solid var(--accent-soft); position: relative; }
+.step::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: 0;
+  width: 38px;
+  height: 2px;
+  background: var(--accent);
+}
+.step p { margin: 0; color: var(--fg-mut); font-size: 15px; }
+.step .lbl {
+  font: 600 11.5px/1 system-ui, sans-serif;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  display: block;
+  margin-bottom: 12px;
+}
+
+/* ---------- app pages ---------- */
+
+.page { padding-block: clamp(28px, 5vh, 48px); }
+
+.layout { display: flex; gap: 24px; flex-wrap: wrap; align-items: stretch; }
+
+.panel {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 24px;
+}
+
+.pair { flex: 0 0 380px; text-align: center; }
+.feed { flex: 1 1 420px; min-width: 320px; }
+/* h2 is sized for the landing page's section headings; inside a panel it is
+   just a list caption. */
+.panel h2 { font-size: 20px; letter-spacing: -0.015em; margin-bottom: 20px; max-width: none; }
+
+/*
+ * The QR keeps its own white card — a scanner needs the quiet zone and the
+ * contrast — and the portal ring sits outside it rather than over it.
+ */
+.qr-frame {
+  display: inline-block;
+  padding: 14px;
+  border: 1px solid var(--accent-soft);
+  border-radius: 22px;
+  background: rgba(61, 218, 215, 0.04);
+  box-shadow: 0 0 40px -12px rgba(61, 218, 215, 0.35);
+}
+
+#qr { width: 260px; height: 260px; background: #fff; padding: 12px; border-radius: 12px; }
+#qr svg { display: block; width: 100%; height: 100%; }
+
+/*
+ * No word-break: break-all here. The code is read aloud and typed by hand, so
+ * it must wrap at the hyphens between groups and never mid-group — breaking
+ * "…Z12RB / N-DBZCP4" invites transcription errors in the one place the user
+ * cannot afford them.
+ */
+.code {
+  font: 700 22px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 2px;
+  color: var(--accent);
+  margin-top: 18px;
+}
+
+.pair .status { margin-top: 16px; }
+
+/*
+ * One treatment for both the ordinary and the volatile-storage wording. The
+ * two cases differ only in the sentence receiver.ts writes here, and nothing
+ * in the DOM distinguishes them; an amber variant would need a data attribute
+ * set alongside the text rather than a guess in CSS.
+ */
+.callout {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--line-2);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  background: var(--bg-3);
+  color: var(--fg-mut);
+  font-size: 14px;
+  line-height: 1.55;
+  text-align: left;
+}
+
+.panel-foot {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+ul.links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+
+/*
+ * The anchor's text is exactly the URL and nothing else. The end-to-end suite
+ * asserts it with toHaveText, which compares the whole string, so a label or
+ * a timestamp inside the anchor would fail — put chrome outside it.
+ */
+ul.links a {
+  display: block;
+  padding: 18px 20px;
+  min-height: 64px;
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 12px;
+  color: var(--accent);
+  font: 400 18px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-decoration: none;
+  word-break: break-all;
+}
+
+ul.links a:active { background: #262c37; }
+
+/* ---------- sender ---------- */
+
+.phone { max-width: 480px; margin: 0 auto; }
+.phone .panel + .panel { margin-top: 16px; }
+.phone .field { margin: 16px 0 0; }
+.phone .cta-send { display: grid; margin-top: 12px; }
+.phone .mark-lg { width: 40px; height: 40px; display: block; margin-bottom: 16px; }
+
+/* ---------- diagnostics ---------- */
+
+#report { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 20px; }
+#report dt { color: var(--fg-dim); font-size: 14.5px; }
+#report dd {
+  margin: 0;
+  font: 400 14.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-all;
+}
+#log {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font: 400 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ---------- motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .beam, .ring-glow { animation: none; }
+}
