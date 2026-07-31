@@ -137,12 +137,18 @@ npm install --save qrcode-generator
     "deploy": "npm run build && wrangler deploy",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.worker.json --noEmit && tsc -p tsconfig.test.json --noEmit"
   }
 }
 ```
 
-`tsconfig.json`:
+**Three tsconfigs, one per runtime environment.** A single config with every
+`types` entry lets browser code reference `process`, `Buffer`, or Workers-only
+globals, pass `tsc`, and then fail at runtime in a car with no developer tools.
+`src/shared/**` is the code that must run in *both* a Workers isolate and the
+car browser, so it appears in two configs and sees the ambients of neither.
+
+`tsconfig.json` — the base, and the browser/shared surface:
 
 ```json
 {
@@ -155,11 +161,34 @@ npm install --save qrcode-generator
     "noUncheckedIndexedAccess": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "types": ["@cloudflare/workers-types", "vite/client", "node"]
+    "types": ["vite/client"]
   },
-  "include": ["src", "tests"]
+  "include": ["src/shared", "src/client"]
 }
 ```
+
+`tsconfig.worker.json`:
+
+```json
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "types": ["@cloudflare/workers-types"] },
+  "include": ["src/worker", "src/shared"]
+}
+```
+
+`tsconfig.test.json`:
+
+```json
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "types": ["node"] },
+  "include": ["tests"]
+}
+```
+
+Verify the split actually bites rather than assuming it: a file under
+`src/shared/` referencing `process.env` must **fail** `tsc -p tsconfig.json`.
 
 `vite.config.ts`:
 
