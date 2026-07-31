@@ -3,8 +3,14 @@ import { seal, openEnvelope, newMessageId } from "../shared/envelope";
 import { loadHistory } from "./history";
 import { loadDropCounts, readClockDelta, loadErrors, installErrorCapture } from "../shared/diagnostics";
 import { resolveSeed } from "./session";
+import { resolveStorage } from "./storage";
 
-installErrorCapture(window.localStorage);
+// This page is the only diagnostic channel in the car, so it must survive the
+// very condition it exists to report. Reading window.localStorage directly
+// here used to throw before a single row rendered, leaving a blank screen.
+const { store: storage, volatile: volatileStorage } = resolveStorage();
+
+installErrorCapture(storage);
 
 const rows: Array<[string, string]> = [];
 
@@ -25,7 +31,7 @@ function render(): void {
     list.appendChild(dd);
   }
   // Errors are read from storage, so failures on /r are visible here.
-  const errors = loadErrors(window.localStorage);
+  const errors = loadErrors(storage);
   document.getElementById("log")!.textContent = errors.length ? errors.join("\n") : "none";
 }
 
@@ -94,6 +100,15 @@ async function run(): Promise<void> {
     add("localStorage round-trip", `FAILED: ${String(error)}`);
   }
 
+  add(
+    "Storage mode",
+    volatileStorage
+      ? "IN-MEMORY FALLBACK — this browser blocks site storage, so the pairing "
+        + "code and history are lost on every reload. Use the bookmarked /r#… "
+        + "link to restore a pairing."
+      : "localStorage",
+  );
+
   add("crypto.subtle", typeof crypto !== "undefined" && !!crypto.subtle ? "present" : "MISSING");
 
   // A live round trip, not a constructor check: proxies, TLS interception and
@@ -110,23 +125,23 @@ async function run(): Promise<void> {
     add("Crypto round-trip", `FAILED: ${String(error)}`);
   }
 
-  const resolved = resolveSeed("", window.localStorage, "require");
+  const resolved = resolveSeed("", storage, "require");
   add("Stored seed", resolved ? `present (${resolved.source})` : "none — this device is not paired");
   if (resolved) {
     const pairing = await derivePairing(resolved.seed);
     add("Room ID", pairing.roomId);
   }
 
-  add("History entries", String(loadHistory(window.localStorage).length));
+  add("History entries", String(loadHistory(storage).length));
 
-  const drops = loadDropCounts(window.localStorage);
+  const drops = loadDropCounts(storage);
   add(
     "Rejected messages",
     `decrypt ${drops.decrypt}, malformed ${drops.malformed}, bad scheme ${drops.scheme}, `
       + `stale ${drops.stale}, replay ${drops.replay}`,
   );
 
-  const delta = readClockDelta(window.localStorage);
+  const delta = readClockDelta(storage);
   add(
     "Clock delta vs last sender (ms)",
     delta === null

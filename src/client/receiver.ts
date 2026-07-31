@@ -14,8 +14,9 @@ import { loadHistory, pushHistory, clearHistory, type HistoryEntry } from "./his
 import { connect, type SocketHandle } from "../shared/socket";
 import { resolveSeed, clearSeed, storeRole } from "./session";
 import { renderQr } from "./qr";
+import { resolveStorage } from "./storage";
 
-const storage = window.localStorage;
+const { store: storage, volatile: volatileStorage } = resolveStorage();
 const el = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
 let pairing: Pairing;
@@ -91,9 +92,15 @@ async function start(seed: Bytes): Promise<void> {
 
   // The car's browser storage gets cleared by software updates. The bookmark is
   // the only thing that survives, so ask for it explicitly rather than hoping.
-  el("bookmark").textContent =
-    "Bookmark this page now — the address bar holds your code. If the car clears "
-    + "its browser data, opening the bookmark restores this same pairing.";
+  // With storage blocked the bookmark is not merely useful, it is the only
+  // thing that can bring this pairing back — the code lives in the URL, not in
+  // storage. Say so more urgently rather than hiding the degraded state.
+  el("bookmark").textContent = volatileStorage
+    ? "This browser is blocking site storage, so this code will be lost on "
+      + "reload. Bookmark this page now — the code in the address bar is the "
+      + "only way back to this pairing."
+    : "Bookmark this page now — the address bar holds your code. If the car clears "
+      + "its browser data, opening the bookmark restores this same pairing.";
 
   socket?.close();
   socket = connect(`${location.origin.replace(/^http/, "ws")}/ws/${pairing.roomId}?role=receiver`, {
