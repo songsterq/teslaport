@@ -7,10 +7,13 @@
     <link rel="stylesheet" href="/src/client/app.css" />
   </head>
   <body>
-    <h1>TeslaPort diagnostics</h1>
+    <h1>Diagnostics</h1>
+    <section class="panel"><dl id="report"></dl></section>
     <section class="panel">
-      <p>The diagnostics UI is coming in a later implementation task.</p>
-      <p><a href="/r">Back to the receiver</a></p>
+      <h2>Recent errors</h2>
+      <pre id="log" class="hint"></pre>
     </section>
+    <p class="hint"><a href="/r">Back to the car page</a></p>
+    <script type="module" src="/src/client/debug.ts"></script>
   </body>
 </html>
