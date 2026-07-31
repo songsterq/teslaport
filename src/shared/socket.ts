@@ -1,0 +1,113 @@
+import type { Bytes } from "./bytes";
+import type { ControlMessage } from "./protocol";
+
+export type ConnectionStatus = "connecting" | "open" | "closed";
+
+export interface SocketHandlers {
+  onStatus(status: ConnectionStatus): void;
+  onFrame(frame: Bytes): void;
+  onControl(message: ControlMessage): void;
+}
+
+export interface SocketHandle {
+  /** Returns false if the socket was not open and the frame was dropped. */
+  send(frame: Bytes): boolean;
+  close(): void;
+}
+
+const MAX_DELAY_MS = 30000;
+
+export function nextDelay(attempt: number, random: () => number = Math.random): number {
+  const base = Math.min(MAX_DELAY_MS, 1000 * Math.pow(2, attempt));
+  return Math.round(base * (0.5 + 0.5 * random()));
+}
+
+export function connect(url: string, handlers: SocketHandlers): SocketHandle {
+  let ws: WebSocket | null = null;
+  let attempt = 0;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let closed = false;
+
+  function clearTimer(): void {
+    if (timer !== null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  }
+
+  function scheduleReconnect(): void {
+    if (closed || timer !== null) return;
+    const delay = nextDelay(attempt);
+    attempt += 1;
+    timer = setTimeout(() => {
+      timer = null;
+      open();
+    }, delay);
+  }
+
+  function open(): void {
+    if (closed) return;
+    handlers.onStatus("connecting");
+    const socket = new WebSocket(url);
+    socket.binaryType = "arraybuffer";
+    ws = socket;
+
+    socket.addEventListener("open", () => {
+      attempt = 0;
+      handlers.onStatus("open");
+    });
+
+    socket.addEventListener("message", (event) => {
+      const data = (event as MessageEvent).data;
+      if (typeof data === "string") {
+        try {
+          handlers.onControl(JSON.parse(data) as ControlMessage);
+        } catch {
+          // Ignore unparseable control frames.
+        }
+        return;
+      }
+      handlers.onFrame(new Uint8Array(data as ArrayBuffer));
+    });
+
+    const drop = (): void => {
+      if (ws !== socket) return;
+      ws = null;
+      handlers.onStatus("closed");
+      scheduleReconnect();
+    };
+    socket.addEventListener("close", drop);
+    socket.addEventListener("error", drop);
+  }
+
+  // Reconnect immediately when the screen wakes rather than waiting out a backoff.
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && !closed && ws === null) {
+        clearTimer();
+        attempt = 0;
+        open();
+      }
+    });
+  }
+
+  open();
+
+  return {
+    send(frame) {
+      if (ws === null || ws.readyState !== WebSocket.OPEN) return false;
+      try {
+        ws.send(frame);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    close() {
+      closed = true;
+      clearTimer();
+      if (ws !== null) ws.close();
+      ws = null;
+    },
+  };
+}
