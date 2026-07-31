@@ -19,7 +19,7 @@ const storage = window.localStorage;
 const el = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
 let pairing: Pairing;
-let seen: SeenStore;
+let seen: SeenStore | null = null;
 let socket: SocketHandle | null = null;
 
 function renderLinks(entries: HistoryEntry[]): void {
@@ -54,6 +54,7 @@ async function handleFrame(frame: Bytes): Promise<void> {
   if (result.payload.t !== "url") return;
 
   recordClockDelta(storage, Date.now() - result.payload.ts);
+  if (seen === null) return;
   if (seen.has(result.payload.id)) {
     bumpDropCount(storage, "replay");
     return;
@@ -110,7 +111,7 @@ el("burn").addEventListener("click", () => {
   if (!confirm("Burn this code? Paired phones will stop working.")) return;
   clearSeed(storage);
   clearHistory(storage);
-  seen.clear();
+  seen?.clear();
   const resolved = resolveSeed("", storage, "generate")!;
   void start(resolved.seed);
 });
@@ -122,5 +123,4 @@ el("clear").addEventListener("click", () => {
 
 installErrorCapture(storage);
 const resolved = resolveSeed(location.hash, storage, "generate")!;
-storeSeed(storage, resolved.seed);
 void start(resolved.seed);
