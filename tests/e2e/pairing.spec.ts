@@ -135,6 +135,17 @@ test("the home page routes to both roles", async ({ browser }) => {
   await expect(phone.locator("#unpaired")).toBeVisible();
 });
 
+test("the receiver page serves with a trailing slash and keeps the seed", async ({ browser }) => {
+  const code = "0123456789ABCDEFGHJKMNPQ"; // 24 valid Crockford characters
+  const page = await (await browser.newContext()).newPage();
+
+  const response = await page.goto(`/r/#${code}`);
+  expect(response?.status()).toBe(200);
+  await expect(page.locator("#qr svg")).toBeVisible();
+  // The fragment carries the pairing; it must survive the path shape.
+  await expect(page.locator("#code")).toHaveText("012345-6789AB-CDEFGH-JKMNPQ");
+});
+
 // The probe only reports ok once the server answers the byte it sent, so this
 // covers the outbound frame path too — not just the upgrade.
 test("/debug round-trip probes all pass against the real worker", async ({ browser }) => {
