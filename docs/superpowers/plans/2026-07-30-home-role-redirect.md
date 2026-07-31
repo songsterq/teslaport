@@ -4,7 +4,7 @@
 
 **Goal:** When a browser revisits `/`, skip the role chooser and resume the last role (`/r` or `/s`) this device used.
 
-**Architecture:** Persist `teslaport:role` (`"receiver"` | `"sender"`) in `localStorage` alongside the existing seed. `/r` and `/s` write the role on load; a tiny `home.ts` on `/` reads it and `location.replace`s. Cross-links on each page let the same browser switch roles.
+**Architecture:** Persist `teslaport:role` (`"receiver"` | `"sender"`) in `localStorage` alongside the existing seed. `/r` and `/s` write the role on load; a tiny `home.ts` on `/` reads it and `location.replace`s, unless `?choose` is present. A quiet “Start over” link on each page routes back to `/?choose` so the chooser is always reachable.
 
 **Tech Stack:** TypeScript, Vite multi-page app (no UI framework), Vitest, existing `session.ts` / `KeyValueStore` patterns.
 
@@ -30,8 +30,8 @@ Every task's requirements implicitly include this section.
 | `index.html` | Chooser shell; loads `home.ts` |
 | `src/client/receiver.ts` | Car page; call `storeRole(..., "receiver")` |
 | `src/client/sender.ts` | Phone page; call `storeRole(..., "sender")` |
-| `r/index.html` | Cross-link to `/s` |
-| `s/index.html` | Cross-link to `/r` |
+| `r/index.html` | “Start over” link to `/?choose` |
+| `s/index.html` | “Start over” link to `/?choose` |
 
 ---
 
@@ -153,8 +153,9 @@ EOF
 **Interfaces:**
 - Consumes: `loadRole`, `Role` from `src/client/session.ts`
 - Produces:
-  - `export function pathForRole(role: Role | null): "/r" | "/s" | null`
-  - `src/client/home.ts` side-effect module that uses `pathForRole` + `location.replace`
+  - `export const CHOOSE_PARAM = "choose"`
+  - `export function redirectTarget(role: Role | null, search: string): "/r" | "/s" | null`
+  - `src/client/home.ts` side-effect module that uses `redirectTarget` + `location.replace`
 
 - [ ] **Step 1: Write the failing tests for path mapping**
 
@@ -164,16 +165,20 @@ Create `tests/client/home.test.ts`:
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { pathForRole } from "../../src/client/home";
+import { redirectTarget, CHOOSE_PARAM } from "../../src/client/home";
 
-describe("pathForRole", () => {
+describe("redirectTarget", () => {
   it("maps receiver to /r and sender to /s", () => {
-    expect(pathForRole("receiver")).toBe("/r");
-    expect(pathForRole("sender")).toBe("/s");
+    expect(redirectTarget("receiver", "")).toBe("/r");
+    expect(redirectTarget("sender", "")).toBe("/s");
   });
 
   it("returns null when no role", () => {
-    expect(pathForRole(null)).toBeNull();
+    expect(redirectTarget(null, "")).toBeNull();
+  });
+
+  it("stays on the chooser when the choose flag is present", () => {
+    expect(redirectTarget("receiver", `?${CHOOSE_PARAM}`)).toBeNull();
   });
 });
 ```
@@ -191,7 +196,10 @@ Create `src/client/home.ts`:
 ```ts
 import { loadRole, type Role } from "./session";
 
-export function pathForRole(role: Role | null): "/r" | "/s" | null {
+export const CHOOSE_PARAM = "choose";
+
+export function redirectTarget(role: Role | null, search: string): "/r" | "/s" | null {
+  if (new URLSearchParams(search).has(CHOOSE_PARAM)) return null;
   if (role === "receiver") return "/r";
   if (role === "sender") return "/s";
   return null;
@@ -205,7 +213,7 @@ function bootstrap(): void {
     // localStorage unavailable — leave the chooser visible.
     return;
   }
-  const path = pathForRole(role);
+  const path = redirectTarget(role, location.search);
   if (path) location.replace(path);
 }
 
@@ -258,7 +266,7 @@ EOF
 
 ---
 
-### Task 3: Record role on `/r` and `/s`, add cross-links
+### Task 3: Record role on `/r` and `/s`, add “Start over” links
 
 **Files:**
 - Modify: `src/client/receiver.ts`
@@ -268,7 +276,7 @@ EOF
 
 **Interfaces:**
 - Consumes: `storeRole` from `src/client/session.ts`
-- Produces: pages that persist role on load; hint links to switch role
+- Produces: pages that persist role on load; a hint link back to the chooser
 
 - [ ] **Step 1: Persist role in receiver and sender**
 
@@ -302,17 +310,17 @@ function bootstrap(): void {
 
 Burn / clear handlers must **not** call anything that clears the role.
 
-- [ ] **Step 2: Add cross-links in HTML**
+- [ ] **Step 2: Add “Start over” links in HTML**
 
-In `r/index.html`, add a phone switch link in the feed panel near Diagnostics:
+In `r/index.html`, add the link in the feed panel near Diagnostics:
 
 ```html
-<p class="hint"><a href="/s">I'm the phone instead</a> · <a href="/debug">Diagnostics</a></p>
+<p class="hint"><a href="/?choose">Start over</a> · <a href="/debug">Diagnostics</a></p>
 ```
 
 (Replace the existing Diagnostics-only hint paragraph.)
 
-In `s/index.html`, add a car switch link at the bottom of the unpaired section **and** the paired section so it is always reachable. Simplest: one paragraph after both sections:
+In `s/index.html`, add the link after both sections so it is reachable in either state:
 
 ```html
     <section class="panel" id="paired" hidden>
@@ -321,7 +329,7 @@ In `s/index.html`, add a car switch link at the bottom of the unpaired section *
     <section class="panel" id="unpaired">
       ...
     </section>
-    <p class="hint"><a href="/r">I'm the car instead</a></p>
+    <p class="hint"><a href="/?choose">Start over</a></p>
     <script type="module" src="/src/client/sender.ts"></script>
 ```
 
@@ -344,7 +352,7 @@ Then:
 1. Open `/` → chooser visible (no role yet).
 2. Click “I'm the car” → `/r` shows QR; confirm `localStorage.teslaport:role === "receiver"`.
 3. Open `/` again → should land on `/r` without chooser.
-4. Click “I'm the phone instead” → `/s`; open `/` → lands on `/s`.
+4. Click “Start over” → `/?choose` shows the chooser; pick phone → `/s`; open `/` → lands on `/s`.
 5. Burn code on `/r` → still on `/r` with new code; open `/` → still `/r`.
 
 - [ ] **Step 5: Commit**
@@ -366,9 +374,9 @@ EOF
 |---|---|
 | Persist `teslaport:role` | Task 1 |
 | `/` redirect via `location.replace` | Task 2 |
-| Legacy: no role → chooser even if seed exists | Task 2 (`pathForRole(null)`) |
+| Legacy: no role → chooser even if seed exists | Task 2 (`redirectTarget(null, "")`) |
 | `/r` / `/s` set role on load | Task 3 |
-| Cross-links to switch roles | Task 3 |
+| “Start over” escape back to the chooser | Task 2 (`redirectTarget`) + Task 3 |
 | Burn does not clear role | Task 1 test + Task 3 (no clear) |
 | Corrupt role → chooser | Task 1 |
 | localStorage throw → chooser | Task 2 try/catch |
