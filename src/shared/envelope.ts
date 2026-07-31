@@ -58,7 +58,12 @@ function isValidPayload(value: unknown): value is Payload {
   return false;
 }
 
-function hasAllowedScheme(url: string): boolean {
+/**
+ * The single definition of a URL this app is willing to hand to the browser.
+ * Exported so every place that can put a URL in front of the user — the wire,
+ * and the car's persisted history — asks the same question.
+ */
+export function hasAllowedScheme(url: string): boolean {
   try {
     const parsed = new URL(url);
     return parsed.protocol === "http:" || parsed.protocol === "https:";
