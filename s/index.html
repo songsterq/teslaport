@@ -4,24 +4,50 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>TeslaPort — Phone</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none'%3E%3Cpath d='M53.61 24.13A23 23 0 0 0 10.39 24.13' stroke='%233ddad7' stroke-width='7' stroke-linecap='round'/%3E%3Cpath d='M10.39 39.87A23 23 0 0 0 53.61 39.87' stroke='%233ddad7' stroke-width='7' stroke-linecap='round'/%3E%3Cpath d='M22 20 40 32 22 44' stroke='%23f5f8fa' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
     <link rel="stylesheet" href="/src/client/app.css" />
   </head>
   <body>
-    <h1>Send to car</h1>
-    <section class="panel" id="paired" hidden>
-      <div class="status"><span class="dot" id="dot"></span><span id="status">Connecting…</span></div>
-      <p><input type="url" id="url" placeholder="Paste a link" autocomplete="off" autocapitalize="off" spellcheck="false" /></p>
-      <div class="row"><button class="primary" id="send" disabled>Send</button></div>
-      <p class="msg" id="msg"></p>
-    </section>
-    <section class="panel" id="unpaired">
-      <p>Not paired yet.</p>
-      <p class="hint">Open TeslaPort on your car screen and scan the QR code, or type the code below.</p>
-      <p><input type="text" id="manual" placeholder="XXXXXX-XXXXXX-XXXXXX-XXXXXX" autocapitalize="characters" autocomplete="off" spellcheck="false" /></p>
-      <div class="row"><button class="primary" id="pair">Pair</button></div>
-      <p class="msg" id="pairmsg"></p>
-    </section>
-    <p class="hint"><a href="/?choose">Start over</a></p>
+    <header class="site-header">
+      <div class="wrap">
+        <span class="brand">
+          <svg class="mark" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+            <path d="M53.61 24.13 A23 23 0 0 0 10.39 24.13" stroke="#3ddad7" stroke-width="5" stroke-linecap="round" />
+            <path d="M10.39 39.87 A23 23 0 0 0 53.61 39.87" stroke="#3ddad7" stroke-width="5" stroke-linecap="round" />
+            <path d="M22 20 L40 32 L22 44" stroke="#f5f8fa" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <b>TeslaPort</b>
+        </span>
+        <a class="ghost" href="/?choose">Start over</a>
+      </div>
+    </header>
+
+    <main class="wrap page">
+      <div class="phone">
+        <h1>Send to car</h1>
+
+        <section class="panel" id="paired" hidden>
+          <div class="status"><span class="dot" id="dot"></span><span id="status">Connecting…</span></div>
+          <p class="field"><input type="url" id="url" placeholder="Paste a link" autocomplete="off" autocapitalize="off" spellcheck="false" /></p>
+          <div class="cta-send"><button class="primary" id="send" disabled>Send</button></div>
+          <p class="msg" id="msg"></p>
+        </section>
+
+        <section class="panel" id="unpaired">
+          <svg class="mark-lg" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+            <path d="M53.61 24.13 A23 23 0 0 0 10.39 24.13" stroke="#3ddad7" stroke-width="5" stroke-linecap="round" />
+            <path d="M10.39 39.87 A23 23 0 0 0 53.61 39.87" stroke="#3ddad7" stroke-width="5" stroke-linecap="round" />
+            <path d="M22 20 L40 32 L22 44" stroke="#f5f8fa" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <p>Not paired yet.</p>
+          <p class="hint">Open TeslaPort on your car screen and scan the QR code, or type the code below.</p>
+          <p class="field"><input type="text" id="manual" placeholder="XXXXXX-XXXXXX-XXXXXX-XXXXXX" autocapitalize="characters" autocomplete="off" spellcheck="false" /></p>
+          <div class="cta-send"><button class="primary" id="pair">Pair</button></div>
+          <p class="msg" id="pairmsg"></p>
+        </section>
+      </div>
+    </main>
+
     <script type="module" src="/src/client/sender.ts"></script>
   </body>
 </html>

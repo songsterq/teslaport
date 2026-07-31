@@ -221,6 +221,35 @@ tests assert.
 No file under `src/client/*.ts`, `src/shared/`, `src/worker/`, or `tests/`
 changes.
 
+## Found during implementation
+
+Five things the design above did not anticipate.
+
+**One "Start over" per page, and it lives in the header.** `home-role.spec.ts`
+clicks `a[href="/?choose"]` in Playwright's strict mode, so the new header link
+plus the existing in-panel one made the selector ambiguous and the test failed.
+The header copy is the consistent chrome, so the in-panel link was removed from
+`/r`. `/debug` lost its duplicate back-link for the same reason of hygiene,
+though nothing asserts it.
+
+**The pairing code must not break mid-group.** `word-break: break-all` carried
+over from the old stylesheet split it as `…Z12RB / N-DBZCP4`. That string is
+read aloud and typed by hand, so it now wraps only at the hyphens between
+groups. `.pair` widened from 340px to 380px to go with it.
+
+**`#manual` is monospace.** The code is transcribed character by character off
+the car screen; setting the input in the same face it is displayed in makes
+the comparison possible.
+
+**`.layout` stretches rather than aligning to the start**, so the pairing and
+feed panels are the same height on the car's wide display instead of leaving
+the feed as a short box beside a tall one.
+
+**`.hero .wrap` needs an explicit `width: 100%`.** `margin: 0 auto` on a grid
+item suppresses the default stretch and sizes it to fit-content, which centred
+the hero and moved its left edge off the one every other section uses; the
+layout visibly jumped when the window crossed the short-viewport breakpoint.
+
 ## Verification
 
 - `npm run check` passes unchanged — typecheck, unit, worker, and e2e. The e2e
