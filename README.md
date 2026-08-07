@@ -1,8 +1,13 @@
 # TeslaPort
 
+**Live:** [http://teslaport.endlessrainstudio.com/](http://teslaport.endlessrainstudio.com/)
+
 Send links from your phone to your Tesla's browser. Links are encrypted in your
 browser and decrypted in the car; the server relays opaque bytes and cannot read
 them.
+
+TeslaPort is not affiliated with Tesla, Inc. “Tesla” is a trademark of its
+respective owner.
 
 ## How it works
 
@@ -35,16 +40,19 @@ npm run deploy
 Then point a domain at the Worker in the Cloudflare dashboard. Durable Objects
 run on the free plan, so hosting cost is the domain registration only.
 
+The public instance is at
+[teslaport.endlessrainstudio.com](http://teslaport.endlessrainstudio.com/).
+
 ## Search engines
 
 The home page is the only indexable page; `/r`, `/s` and `/debug` carry
 `noindex,nofollow` and are deliberately left crawlable so the crawler can read
 that tag.
 
-**No domain is written down anywhere.** The Worker injects
+**No domain is hardcoded in HTML or Worker config.** The Worker injects
 `<link rel="canonical">` and fills the origin into the `og:` URLs from the host
 that served the request, and generates `robots.txt` and `sitemap.xml` the same
-way, so the site can move domains with no edit at all. `public/` holds only the
+way, so the site can move domains with no source edit. `public/` holds only the
 social card. Regenerate it with:
 
 ```bash
@@ -67,3 +75,12 @@ than remembering both. Pairing several phones to one car works fine — that
 direction is unlimited.
 
 After the first deploy, run `docs/in-car-checklist.md` in the car.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Please report security issues privately
+per [SECURITY.md](SECURITY.md).
+
+## License
+
+[MIT](LICENSE) © Song Qian
