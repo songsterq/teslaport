@@ -1,11 +1,19 @@
 {
   "name": "teslaport",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Encrypted link sharing from phone to Tesla car browser via a Cloudflare Durable Object relay",
+  "private": true,
   "type": "module",
   "directories": {
     "doc": "docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/songsterq/teslaport.git"
+  },
+  "homepage": "http://teslaport.endlessrainstudio.com/",
+  "bugs": {
+    "url": "https://github.com/songsterq/teslaport/issues"
   },
   "scripts": {
     "build": "vite build",
@@ -16,9 +24,15 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.worker.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "check": "npm run typecheck && npm run test && npm run test:e2e"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "tesla",
+    "link-sharing",
+    "cloudflare-workers",
+    "durable-objects",
+    "end-to-end-encryption"
+  ],
+  "author": "Song Qian",
+  "license": "MIT",
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.19.1",
     "@cloudflare/workers-types": "^5.20260731.1",
