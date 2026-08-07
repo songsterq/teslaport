@@ -56,5 +56,10 @@
   // new_sqlite_classes (not new_classes) is required for Durable Objects
   // on the free plan. The class stores nothing.
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
-  "observability": { "enabled": false }
+  "observability": {
+    "logs": {
+      "enabled": false,
+      "invocation_logs": true
+    }
+  }
 }
